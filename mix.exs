@@ -14,6 +14,7 @@ defmodule Pobcoin.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
+      mod: {Pobcoin.Application, []},
       extra_applications: [:logger]
     ]
   end
@@ -23,7 +24,8 @@ defmodule Pobcoin.MixProject do
     [
       {:nostrum, "~> 0.4"},
       {:ecto_sql, "~> 3.0"},
-      {:postgrex, ">= 0.0.0"}
+      {:postgrex, ">= 0.0.0"},
+      {:dotenv_parser, "~> 1.2"}
     ]
   end
 end
