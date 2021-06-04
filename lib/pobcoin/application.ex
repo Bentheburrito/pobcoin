@@ -8,6 +8,7 @@ defmodule Pobcoin.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      SlashCommand,
       {Pobcoin.Consumer, name: Pobcoin.Consumer}
     ]
 

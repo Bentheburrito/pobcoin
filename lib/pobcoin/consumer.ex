@@ -14,6 +14,22 @@ defmodule Pobcoin.Consumer do
     if Enum.random(1..80) == 1, do: Api.create_reaction(message.channel_id, message.id, Enum.random(["thonk:381325006761754625", "🤔", "😂", "😭"]))
   end
 
+  def handle_event({:INTERACTION_CREATE, interaction, _ws_state}) do
+    SlashCommand.handle_interaction(interaction)
+  end
+
+  def handle_event({:READY, data, _ws_state}) do
+		IO.puts("Logged in under user #{data.user.username}##{data.user.discriminator}")
+		Api.update_status(:dnd, "twitch.tv/pobsterlot", 3)
+
+    SlashCommand.init_commands()
+	end
+
+  def handle_event({event, reg_ack, _ws_state}) when event in [:APPLICATION_COMMAND_CREATE, :APPLICATION_COMMAND_UPDATE] do
+    IO.puts "aha"
+    SlashCommand.put_register(reg_ack.name, reg_ack)
+  end
+
   # Default event handler, if you don't include this, your consumer WILL crash if
   # you don't have a method definition for each event type.
   def handle_event(_event) do
