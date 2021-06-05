@@ -27,8 +27,9 @@ defmodule SlashCommand do
 	end
 
   def put(command_module) do
-    command_name = register_command(command_module)
+    %{name: command_name} = apply(command_module, :command_definition, [])
     Agent.update(__MODULE__, &Map.put(&1, command_name, {command_module, nil}))
+    register_command(command_module)
   end
 
   def put_register(command_name, reg_ack) do
@@ -70,7 +71,7 @@ defmodule SlashCommand do
 
   defp register_command(command_module) do
 
-    %{name: name} = definition = apply(command_module, :command_definition, [])
+    definition = apply(command_module, :command_definition, [])
     scope = apply(command_module, :command_scope, [])
 
     case scope do
@@ -78,8 +79,6 @@ defmodule SlashCommand do
       {:guild, guild_id} -> Api.create_guild_application_command(guild_id, definition)
       {:guilds, guild_ids} -> Enum.each(guild_ids, &Api.create_guild_application_command(&1, definition))
     end
-
-    name
   end
 
   defp unregister_command(command_module, command_reg_ack) do

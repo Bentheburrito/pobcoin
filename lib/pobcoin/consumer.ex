@@ -8,10 +8,12 @@ defmodule Pobcoin.Consumer do
   end
 
   def handle_event({:MESSAGE_CREATE, message, _ws_state}) do
-
-
     if message.content == "!pob", do: Api.create_message(message.channel_id, "pob")
-    if Enum.random(1..80) == 1, do: Api.create_reaction(message.channel_id, message.id, Enum.random(["thonk:381325006761754625", "🤔", "😂", "😭"]))
+
+    if Enum.random(1..80) == 1 do
+      emoji = Enum.random(["thonk:381325006761754625", "🤔", "😂", "😭"])
+      Api.create_reaction(message.channel_id, message.id, emoji)
+    end
   end
 
   def handle_event({:INTERACTION_CREATE, interaction, _ws_state}) do
@@ -26,7 +28,6 @@ defmodule Pobcoin.Consumer do
 	end
 
   def handle_event({event, reg_ack, _ws_state}) when event in [:APPLICATION_COMMAND_CREATE, :APPLICATION_COMMAND_UPDATE] do
-    IO.puts "aha"
     SlashCommand.put_register(reg_ack.name, reg_ack)
   end
 
