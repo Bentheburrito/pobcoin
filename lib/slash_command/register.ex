@@ -23,6 +23,9 @@ defmodule SlashCommand.Register do
   end
 
   @impl SlashCommand
+  def ephemeral?, do: true
+
+  @impl SlashCommand
   def run(%Interaction{} = interaction) do
     attrs = %{"user_id" => interaction.member.user.id, "coins" => 100}
     changeset = User.changeset(%User{}, attrs)
@@ -35,7 +38,7 @@ defmodule SlashCommand.Register do
         {:message, "You've already been registered with Pobcoin."}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        Logger.error("ERROR INSERTING USER INTO DB (/register): #{inspect changeset.errors}")
+        Logger.error("ERROR INSERTING NEW USER INTO DB (/register): #{inspect changeset.errors}")
         {:message, @error_message}
     end
   end

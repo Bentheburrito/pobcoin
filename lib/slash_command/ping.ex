@@ -16,6 +16,9 @@ defmodule SlashCommand.Ping do
     {:guild, 381258048527794197}
   end
 
+    @impl SlashCommand
+    def ephemeral?, do: true
+
   @impl SlashCommand
   def run(%Interaction{} = _interaction) do
     {:message, "pong!"}

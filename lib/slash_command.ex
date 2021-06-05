@@ -15,16 +15,19 @@ defmodule SlashCommand do
               :global
               | {:guild, guild_id :: Nostrum.Snowflake.t()}
               | {:guilds, [guild_id :: Nostrum.Snowflake.t()]}
-  @callback run(Interaction.t()) :: {:response, map()} | {:message, String.t()} | {:embed, Embed.t()}
+  @callback run(Interaction.t()) ::
+              {:response, map()} | {:message, String.t()} | {:embed, Embed.t()}
+  @callback ephemeral?() :: boolean()
+  @optional_callbacks ephemeral?: 0
 
   def start_link(_init_args) do
-		Agent.start_link(fn -> %{} end, name: __MODULE__)
-	end
+    Agent.start_link(fn -> %{} end, name: __MODULE__)
+  end
 
   ### Public
-	def get(command_name) do
-		Agent.get(__MODULE__, &Map.get(&1, command_name, :notacommand))
-	end
+  def get(command_name) do
+    Agent.get(__MODULE__, &Map.get(&1, command_name, :notacommand))
+  end
 
   def put(command_module) do
     %{name: command_name} = apply(command_module, :command_definition, [])
@@ -33,7 +36,10 @@ defmodule SlashCommand do
   end
 
   def put_register(command_name, reg_ack) do
-    Agent.update(__MODULE__, &Map.update!(&1, command_name, fn {command_module, _} -> {command_module, reg_ack} end))
+    Agent.update(
+      __MODULE__,
+      &Map.update!(&1, command_name, fn {command_module, _} -> {command_module, reg_ack} end)
+    )
   end
 
   def delete(command_name) do
@@ -41,34 +47,62 @@ defmodule SlashCommand do
     unregister_command(module, reg_ack)
   end
 
-	def list do
-		Agent.get(__MODULE__, &(&1))
-	end
+  def list do
+    Agent.get(__MODULE__, & &1)
+  end
+
+  def get_options(%Interaction{data: data}) when not is_map_key(data, :options), do: %{}
 
   def get_options(%Interaction{data: data}) do
     names = get_in(data, [:options, Access.all(), :name])
-    values = get_in(data, [:options, Access.all(), :value])
-    |> Enum.map(fn val when is_binary(val) ->
-      case Integer.parse(val) do
-        {num, _} -> num
-        :error -> val
-      end
-      val -> val
-    end)
+
+    values =
+      get_in(data, [:options, Access.all(), :value])
+      |> Enum.map(fn
+        val when is_binary(val) ->
+          case Integer.parse(val) do
+            {num, _} -> num
+            :error -> val
+          end
+
+        val ->
+          val
+      end)
+
     Enum.zip(names, values) |> Map.new()
   end
 
   def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
     case get(name) do
-      :notacommand -> Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name}")
+      :notacommand ->
+        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name}")
+
       {module, _reg_ack} ->
         case apply(module, :run, [interaction]) do
           {:response, res} when is_map(res) ->
             Api.create_interaction_response(interaction, res)
+
           {:message, message} when is_binary(message) ->
-            Api.create_interaction_response(interaction, message_interaction_response(message))
+            ephemeral =
+              if function_exported?(module, :ephemeral?, 0),
+                do: apply(module, :ephemeral?, []),
+                else: false
+
+            Api.create_interaction_response(
+              interaction,
+              message_interaction_response(message, ephemeral)
+            )
+
           {:embed, %Embed{} = embed} ->
-            Api.create_interaction_response(interaction, embed_interaction_response(embed))
+            ephemeral =
+              if function_exported?(module, :ephemeral?, 0),
+                do: apply(module, :ephemeral?, []),
+                else: false
+
+            Api.create_interaction_response(
+              interaction,
+              embed_interaction_response(embed, ephemeral)
+            )
         end
     end
   end
@@ -83,14 +117,18 @@ defmodule SlashCommand do
   end
 
   defp register_command(command_module) do
-
     definition = apply(command_module, :command_definition, [])
     scope = apply(command_module, :command_scope, [])
 
     case scope do
-      :global -> Api.create_global_application_command(definition)
-      {:guild, guild_id} -> Api.create_guild_application_command(guild_id, definition)
-      {:guilds, guild_ids} -> Enum.each(guild_ids, &Api.create_guild_application_command(&1, definition))
+      :global ->
+        Api.create_global_application_command(definition)
+
+      {:guild, guild_id} ->
+        Api.create_guild_application_command(guild_id, definition)
+
+      {:guilds, guild_ids} ->
+        Enum.each(guild_ids, &Api.create_guild_application_command(&1, definition))
     end
   end
 
@@ -98,24 +136,45 @@ defmodule SlashCommand do
     scope = apply(command_module, :command_scope, [])
 
     case scope do
-      :global -> Api.delete_global_application_command(command_reg_ack.id)
-      {:guild, guild_id} -> Api.delete_guild_application_command(guild_id, command_reg_ack.id)
-      {:guilds, guild_ids} -> Enum.each(guild_ids, &Api.delete_guild_application_command(&1, command_reg_ack.id))
+      :global ->
+        Api.delete_global_application_command(command_reg_ack.id)
+
+      {:guild, guild_id} ->
+        Api.delete_guild_application_command(guild_id, command_reg_ack.id)
+
+      {:guilds, guild_ids} ->
+        Enum.each(guild_ids, &Api.delete_guild_application_command(&1, command_reg_ack.id))
     end
   end
 
-  defp message_interaction_response(message) do
+  defp message_interaction_response(message, false) do
     %{
-      type: 4, # ChannelMessageWithSource
+      # ChannelMessageWithSource
+      type: 4,
       data: %{
         content: message
       }
     }
   end
 
-  defp embed_interaction_response(_embed) do
-    %{
+  defp message_interaction_response(message, true) do
+    message_interaction_response(message, false)
+    |> put_in([:data, :flags], 64)
+  end
 
+  defp embed_interaction_response(embed, false) do
+    %{
+      type: 4,
+      data: %{
+        embeds: [
+          embed
+        ]
+      }
     }
+  end
+
+  defp embed_interaction_response(embed, true) do
+    embed_interaction_response(embed, false)
+    |> put_in([:data, :flags], 64)
   end
 end

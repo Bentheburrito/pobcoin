@@ -5,8 +5,6 @@ defmodule SlashCommand.Transfer do
   alias Pobcoin.{User, Repo}
   alias Ecto.Multi
 
-  import Ecto.Query
-
   @behaviour SlashCommand
 
   @overdraft_msg "must be greater than or equal to %{number}"
@@ -57,8 +55,8 @@ defmodule SlashCommand.Transfer do
 
   defp transfer(%Interaction{} = interaction, target_id, amount) do
     # Get both users' data from DB. If they haven't registered yet, make a new struct for them.
-    sender = get_or_new(interaction.member.user.id)
-    receiver = get_or_new(target_id)
+    sender = Utils.get_or_new(interaction.member.user.id)
+    receiver = Utils.get_or_new(target_id)
 
     # Create changesets with proposed balance changes.
     sender_cs = User.changeset(sender, %{"coins" => sender.coins - amount})
@@ -80,18 +78,10 @@ defmodule SlashCommand.Transfer do
         {:message, "Successfully transferred #{amount} Pobcoin to #{target_user}!\nYour remaining balance is #{sender.coins - amount}"}
 
       {:error, :withdraw, %Ecto.Changeset{errors: [coins: {@overdraft_msg, _list}]}, _changes_so_far} ->
-        {:message, "Tbqfh it doesn't seem like you can afford that :/ (Transfer would result in overdraft)"}
+        {:message, "Tbqfh it doesn't seem like you can afford that :/ (Transfer of #{amount} would result in overdraft)"}
 
       {:error, _, _, _} ->
         {:message, "Uhh something's gone horribly wrong I'm sorry lol\n\n(it didn't work)"}
-    end
-  end
-
-  defp get_or_new(user_id) do
-    case Repo.one(from p in User, where: p.user_id == ^user_id) do
-      nil -> %User{user_id: user_id, coins: 100}
-
-      %User{} = user -> user
     end
   end
 end
