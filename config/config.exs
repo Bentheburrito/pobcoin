@@ -7,3 +7,5 @@ config :pobcoin, Pobcoin.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost"
+
+config :pobcoin, :pobcoin_oligarchs, [214126944395067392, 254728052070678529]

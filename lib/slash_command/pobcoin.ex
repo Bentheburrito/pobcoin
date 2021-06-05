@@ -44,8 +44,8 @@ defmodule SlashCommand.Pobcoin do
         |> Embed.put_author(discord_user.username, nil, Nostrum.Struct.User.avatar_url(discord_user))
         |> Embed.put_field("Pobcoin Balance", user.coins, true)
         |> Embed.put_field("Status", "Very Poor | 1%-er", true)
-        |> Embed.put_color(0x651bc4)
-        |> Embed.put_image("https://cdn.discordapp.com/attachments/381258231613227020/850630598308921434/One_Pob_Dollar.png")
+        |> Embed.put_color(Pobcoin.pob_purple())
+        |> Embed.put_image(Pobcoin.pob_dollar_image_url())
 
         {:embed, embed}
       else

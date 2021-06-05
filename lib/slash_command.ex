@@ -51,6 +51,7 @@ defmodule SlashCommand do
     Agent.get(__MODULE__, & &1)
   end
 
+  @spec get_options(Interaction.t()) :: %{String.t() => integer() | String.t()}
   def get_options(%Interaction{data: data}) when not is_map_key(data, :options), do: %{}
 
   def get_options(%Interaction{data: data}) do

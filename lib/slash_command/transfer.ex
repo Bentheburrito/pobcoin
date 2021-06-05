@@ -71,16 +71,17 @@ defmodule SlashCommand.Transfer do
     # Do the transaction.
     case Repo.transaction(multi) do
       {:ok, _map} ->
-        target_user = case Nostrum.Cache.UserCache.get(target_id) do
+        target_user = case Nostrum.Api.get_user(target_id) do
           {:ok, %Nostrum.Struct.User{} = user} -> user
-          {:error, _} -> "them"
+          _error -> "them"
         end
         {:message, "Successfully transferred #{amount} Pobcoin to #{target_user}!\nYour remaining balance is #{sender.coins - amount}"}
 
       {:error, :withdraw, %Ecto.Changeset{errors: [coins: {@overdraft_msg, _list}]}, _changes_so_far} ->
         {:message, "Tbqfh it doesn't seem like you can afford that :/ (Transfer of #{amount} would result in overdraft)"}
 
-      {:error, _, _, _} ->
+      {:error, fail_op, fail_val, _} ->
+        Logger.error("ERROR INSERTING OR UPDATING USER (/transfer #{target_id} #{amount}): #{inspect fail_op, label: "fail op"} #{inspect fail_val, label: "fail val"}")
         {:message, "Uhh something's gone horribly wrong I'm sorry lol\n\n(it didn't work)"}
     end
   end
