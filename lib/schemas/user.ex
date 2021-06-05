@@ -11,6 +11,7 @@ defmodule Pobcoin.User do
 		user
 		|> cast(params, [:user_id, :coins])
 		|> validate_required([:user_id, :coins])
+    |> validate_number(:coins, greater_than_or_equal_to: 0)
     |> unique_constraint(:user_id)
 	end
 end

@@ -45,6 +45,19 @@ defmodule SlashCommand do
 		Agent.get(__MODULE__, &(&1))
 	end
 
+  def get_options(%Interaction{data: data}) do
+    names = get_in(data, [:options, Access.all(), :name])
+    values = get_in(data, [:options, Access.all(), :value])
+    |> Enum.map(fn val when is_binary(val) ->
+      case Integer.parse(val) do
+        {num, _} -> num
+        :error -> val
+      end
+      val -> val
+    end)
+    Enum.zip(names, values) |> Map.new()
+  end
+
   def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
     case get(name) do
       :notacommand -> Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name}")
