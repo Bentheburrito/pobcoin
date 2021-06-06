@@ -13,8 +13,7 @@ defmodule SlashCommand do
   @callback command_definition() :: map()
   @callback command_scope() ::
               :global
-              | {:guild, guild_id :: Nostrum.Snowflake.t()}
-              | {:guilds, [guild_id :: Nostrum.Snowflake.t()]}
+              | {:guild, guild_id :: Nostrum.Snowflake.t() | [Nostrum.Snowflake.t()]}
   @callback run(Interaction.t()) ::
               {:response, map()} | {:message, String.t()} | {:embed, Embed.t()}
   @callback ephemeral?() :: boolean()
@@ -125,11 +124,11 @@ defmodule SlashCommand do
       :global ->
         Api.create_global_application_command(definition)
 
+      {:guild, guild_ids} when is_list(guild_ids) ->
+        Enum.each(guild_ids, &Api.create_guild_application_command(&1, definition))
+
       {:guild, guild_id} ->
         Api.create_guild_application_command(guild_id, definition)
-
-      {:guilds, guild_ids} ->
-        Enum.each(guild_ids, &Api.create_guild_application_command(&1, definition))
     end
   end
 
@@ -140,11 +139,12 @@ defmodule SlashCommand do
       :global ->
         Api.delete_global_application_command(command_reg_ack.id)
 
+      {:guild, guild_ids} when is_list(guild_ids) ->
+        Enum.each(guild_ids, &Api.delete_guild_application_command(&1, command_reg_ack.id))
+
       {:guild, guild_id} ->
         Api.delete_guild_application_command(guild_id, command_reg_ack.id)
 
-      {:guilds, guild_ids} ->
-        Enum.each(guild_ids, &Api.delete_guild_application_command(&1, command_reg_ack.id))
     end
   end
 

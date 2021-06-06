@@ -11,7 +11,7 @@ defmodule Pobcoin.Consumer do
     if message.content == "!pob", do: Api.create_message(message.channel_id, "pob")
 
     if Enum.random(1..80) == 1 do
-      emoji = Enum.random(["thonk:381325006761754625", "🤔", "😂", "😭"])
+      emoji = Enum.random(["pobcoin:850900816826073099", "thonk:381325006761754625", "🤔", "😂", "😭"])
       Api.create_reaction(message.channel_id, message.id, emoji)
     end
   end

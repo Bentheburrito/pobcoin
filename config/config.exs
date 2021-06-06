@@ -8,4 +8,6 @@ config :pobcoin, Pobcoin.Repo,
   password: "postgres",
   hostname: "localhost"
 
-config :pobcoin, :pobcoin_oligarchs, [214126944395067392, 254728052070678529]
+config :pobcoin,
+  oligarchs: [214126944395067392, 254728052070678529],
+  guilds: [381258048527794197]

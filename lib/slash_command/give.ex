@@ -10,20 +10,20 @@ defmodule SlashCommand.Give do
   def command_definition() do
     %{
       name: "give",
-      description: "Create Pobcoin and give it to a user.",
+      description: "Create Pobcoin and give it to a user (for use by Pobert only).",
       options: [
         %{
           # ApplicationCommandType::USER
           type: 6,
           name: "user",
-          description: "User to give the new Pobcoin to.",
+          description: "User to give the new Pobcoin to. (seriously if you're not Pob stop using this command maybe ok thx!)",
           required: true
         },
         %{
           # ApplicationCommandType::INTEGER
           type: 4,
           name: "amount",
-          description: "The amount of Pobcoin to create.",
+          description: "The amount of Pobcoin to create. (I swear to James's God if you're not Pob I'm gonna-)",
           required: true,
         }
       ],
@@ -47,19 +47,19 @@ defmodule SlashCommand.Give do
 
   @impl SlashCommand
   def command_scope() do
-    {:guild, 381258048527794197}
+    {:guild, Application.get_env(:pobcoin, :guilds, [])}
   end
 
   @impl SlashCommand
   def run(%Interaction{} = interaction) do
     %{"user" => target_id, "amount" => amount} = SlashCommand.get_options(interaction)
     cond do
-      interaction.member.user.id not in Application.get_env(:pobcoin, :pobcoin_oligarchs, []) ->
+      interaction.member.user.id not in Application.get_env(:pobcoin, :oligarchs, []) ->
         {:message, "I'm the captain of this ship and I will [ban you for trying to inflate Pobcoin]! (/give is for Cousin Pob only)"}
       amount == 0 ->
         {:message, "*message deleted by a moderator.*\n\n(You can't create zero Pobcoin)"}
       amount < 0 ->
-        {:message, "lmfapooooo nice try. (You can't create negative Pobcoin)"}
+        {:message, "lmfaopooooo nice try. (You can't create negative Pobcoin)"}
       true ->
         give(interaction, target_id, amount)
     end

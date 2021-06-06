@@ -5,11 +5,12 @@ defmodule Pobcoin.User do
 
   schema "users" do
     field :coins, :integer, default: 100
+    field :one_percenter, :boolean, default: false
 	end
 
 	def changeset(user, params \\ %{}) do
 		user
-		|> cast(params, [:user_id, :coins])
+		|> cast(params, [:user_id, :coins, :one_percenter])
 		|> validate_required([:user_id, :coins])
     |> validate_number(:coins, greater_than_or_equal_to: 0)
     |> unique_constraint(:user_id)

@@ -24,7 +24,7 @@ defmodule SlashCommand.Pobcoin do
 
   @impl SlashCommand
   def command_scope() do
-    {:guild, 381258048527794197}
+    {:guild, Application.get_env(:pobcoin, :guilds, [])}
   end
 
   @impl SlashCommand
@@ -38,18 +38,21 @@ defmodule SlashCommand.Pobcoin do
       |> Map.get("user", interaction.member.user.id)
 
     user = Utils.get_or_new(user_id)
-    with {:ok, %Nostrum.Struct.User{} = discord_user} <- Nostrum.Api.get_user(user_id) do
+    with {:ok, %Nostrum.Struct.User{} = discord_user} <- Nostrum.Api.get_user(user_id),
+         bot? when bot? != true <- discord_user.bot do
       embed =
         %Embed{}
         |> Embed.put_author(discord_user.username, nil, Nostrum.Struct.User.avatar_url(discord_user))
         |> Embed.put_field("Pobcoin Balance", user.coins, true)
-        |> Embed.put_field("Status", "Very Poor | 1%-er", true)
+        |> Embed.put_field("Status", user.one_percenter && "1%-er" || "Pobcoin User", true)
         |> Embed.put_color(Pobcoin.pob_purple())
         |> Embed.put_image(Pobcoin.pob_dollar_image_url())
 
         {:embed, embed}
       else
-        _ -> {:message, "Unable to retrieve user"}
+        true -> {:message, "Bots don't have Pobcoin :\\"}
+        _ ->
+          {:message, "Unable to retrieve user"}
     end
   end
 end

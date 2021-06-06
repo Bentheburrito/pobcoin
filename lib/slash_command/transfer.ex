@@ -1,7 +1,8 @@
 defmodule SlashCommand.Transfer do
   require Logger
 
-  alias Nostrum.Struct.Interaction
+  alias Nostrum.Struct.{Interaction, Embed}
+  alias Nostrum.Struct.User, as: DiscordUser
   alias Pobcoin.{User, Repo}
   alias Ecto.Multi
 
@@ -35,12 +36,14 @@ defmodule SlashCommand.Transfer do
 
   @impl SlashCommand
   def command_scope() do
-    {:guild, 381258048527794197}
+    {:guild, Application.get_env(:pobcoin, :guilds, [])}
   end
 
   @impl SlashCommand
   def run(%Interaction{} = interaction) do
     %{"user" => target_id, "amount" => amount} = SlashCommand.get_options(interaction)
+    %DiscordUser{} = target_user = Nostrum.Api.get_user!(target_id)
+
     cond do
       target_id == interaction.member.user.id ->
         {:message, "Come on man, that doesn't even make sense. (You can't transfer Pobcoin to yourself)"}
@@ -48,15 +51,17 @@ defmodule SlashCommand.Transfer do
         {:message, "Pleeeeease stop wasting my time. (You can't transfer zero Pobcoin)"}
       amount < 0 ->
         {:message, "Nice try, hon. (You can't transfer negative Pobcoin)"}
+      target_user.bot ->
+        {:message, "You can't transfer Pobcoin to bots."}
       true ->
-        transfer(interaction, target_id, amount)
+        transfer(interaction, target_user, amount)
     end
   end
 
-  defp transfer(%Interaction{} = interaction, target_id, amount) do
+  defp transfer(%Interaction{} = interaction, %DiscordUser{} = target_user, amount) do
     # Get both users' data from DB. If they haven't registered yet, make a new struct for them.
     sender = Utils.get_or_new(interaction.member.user.id)
-    receiver = Utils.get_or_new(target_id)
+    receiver = Utils.get_or_new(target_user.id)
 
     # Create changesets with proposed balance changes.
     sender_cs = User.changeset(sender, %{"coins" => sender.coins - amount})
@@ -71,17 +76,26 @@ defmodule SlashCommand.Transfer do
     # Do the transaction.
     case Repo.transaction(multi) do
       {:ok, _map} ->
-        target_user = case Nostrum.Api.get_user(target_id) do
-          {:ok, %Nostrum.Struct.User{} = user} -> user
-          _error -> "them"
-        end
-        {:message, "Successfully transferred #{amount} Pobcoin to #{target_user}!\nYour remaining balance is #{sender.coins - amount}"}
+        Pobcoin.determine_one_percenters()
+
+        embed =
+          %Embed{}
+          |> Embed.put_author(interaction.member.user.username, nil, Nostrum.Struct.User.avatar_url(interaction.member.user))
+          |> Embed.put_footer(target_user.username, Nostrum.Struct.User.avatar_url(target_user))
+          |> Embed.put_description("Successfully transferred #{amount} Pobcoin to #{target_user}!")
+          |> Embed.put_field(interaction.member.user.username, "#{sender.coins} - #{amount} = **#{sender.coins - amount}**", true)
+          |> Embed.put_field("<:pobcoin:850900816826073099>", "**#{amount} →**", true)
+          |> Embed.put_field(target_user.username, "#{receiver.coins} + #{amount} = **#{receiver.coins + amount}**", true)
+          |> Embed.put_color(Pobcoin.good_green())
+          |> Embed.put_thumbnail(Pobcoin.pob_dollar_image_url())
+
+        {:embed, embed}
 
       {:error, :withdraw, %Ecto.Changeset{errors: [coins: {@overdraft_msg, _list}]}, _changes_so_far} ->
         {:message, "Tbqfh it doesn't seem like you can afford that :/ (Transfer of #{amount} would result in overdraft)"}
 
       {:error, fail_op, fail_val, _} ->
-        Logger.error("ERROR INSERTING OR UPDATING USER (/transfer #{target_id} #{amount}): #{inspect fail_op, label: "fail op"} #{inspect fail_val, label: "fail val"}")
+        Logger.error("ERROR INSERTING OR UPDATING USER (/transfer #{target_user} #{amount}): #{inspect fail_op, label: "fail op"} #{inspect fail_val, label: "fail val"}")
         {:message, "Uhh something's gone horribly wrong I'm sorry lol\n\n(it didn't work)"}
     end
   end

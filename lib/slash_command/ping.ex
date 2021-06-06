@@ -13,7 +13,7 @@ defmodule SlashCommand.Ping do
 
   @impl SlashCommand
   def command_scope() do
-    {:guild, 381258048527794197}
+    {:guild, Application.get_env(:pobcoin, :guilds, [])}
   end
 
     @impl SlashCommand
