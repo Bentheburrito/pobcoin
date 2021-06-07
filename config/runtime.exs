@@ -6,3 +6,9 @@ end
 
 config :nostrum,
   token: System.get_env("BOT_TOKEN") # The token of your bot as a string
+
+config :pobcoin, Pobcoin.Repo,
+  database: "pobcoin",
+  username: System.get_env("DB_USER"),
+  password: System.get_env("DB_PASS"),
+  hostname: System.get_env("DB_HOST")

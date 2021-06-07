@@ -1,14 +1,14 @@
 defmodule SlashCommand do
+  @moduledoc """
+  A behaviour for defining Slash Commands.
+  """
+
   use Agent
 
   require Logger
 
   alias Nostrum.Api
   alias Nostrum.Struct.{Interaction, Embed}
-
-  @moduledoc """
-  A behaviour for defining Slash Commands.
-  """
 
   @callback command_definition() :: map()
   @callback command_scope() ::
@@ -107,7 +107,6 @@ defmodule SlashCommand do
     end
   end
 
-  ### Impl
   def init_commands() do
     with {:ok, list} <- :application.get_key(:pobcoin, :modules) do
       list
@@ -116,6 +115,7 @@ defmodule SlashCommand do
     end
   end
 
+  ### Impl
   defp register_command(command_module) do
     definition = apply(command_module, :command_definition, [])
     scope = apply(command_module, :command_scope, [])

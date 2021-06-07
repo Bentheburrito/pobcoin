@@ -76,6 +76,7 @@ defmodule SlashCommand.Give do
           {:ok, %Nostrum.Struct.User{} = user} -> user
           _error -> "them"
         end
+        Pobcoin.determine_one_percenters()
         {:message, "Successfully created and gave #{amount} Pobcoin to #{target_user}!"}
 
       {:error, %Ecto.Changeset{errors: errors}} ->
