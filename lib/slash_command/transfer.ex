@@ -29,6 +29,13 @@ defmodule SlashCommand.Transfer do
           name: "amount",
           description: "The amount of Pobcoin to transfer.",
           required: true,
+        },
+        %{
+          # ApplicationCommandType::STRING
+          type: 3,
+          name: "memo",
+          description: "An optional memo for the transaction (200 character max).",
+          required: false,
         }
       ]
     }
@@ -41,9 +48,12 @@ defmodule SlashCommand.Transfer do
 
   @impl SlashCommand
   def run(%Interaction{} = interaction) do
-    %{"user" => target_id, "amount" => amount} = SlashCommand.get_options(interaction)
+    %{"user" => target_id, "amount" => amount} = args = SlashCommand.get_options(interaction)
+    memo = Map.get(args, "memo")
+
     %DiscordUser{} = target_user = Nostrum.Api.get_user!(target_id)
 
+    # Additional parameter checks
     cond do
       target_id == interaction.member.user.id ->
         {:message, "Come on man, that doesn't even make sense. (You can't transfer Pobcoin to yourself)"}
@@ -52,13 +62,15 @@ defmodule SlashCommand.Transfer do
       amount < 0 ->
         {:message, "Nice try, hon. (You can't transfer negative Pobcoin)"}
       target_user.bot ->
-        {:message, "You can't transfer Pobcoin to bots."}
+        {:message, "You can't transfer Pobcoin to bots, silly goose."}
+      not is_nil(memo) and memo |> to_string() |> String.length() > 200 ->
+        {:message, "That memo is wayyy too wordy. (It can be up to 200 characters)"}
       true ->
-        transfer(interaction, target_user, amount)
+        transfer(interaction, target_user, amount, memo)
     end
   end
 
-  defp transfer(%Interaction{} = interaction, %DiscordUser{} = target_user, amount) do
+  defp transfer(%Interaction{} = interaction, %DiscordUser{} = target_user, amount, memo \\ nil) do
     # Get both users' data from DB. If they haven't registered yet, make a new struct for them.
     sender = Utils.get_or_new(interaction.member.user.id)
     receiver = Utils.get_or_new(target_user.id)
@@ -78,11 +90,14 @@ defmodule SlashCommand.Transfer do
       {:ok, _map} ->
         Pobcoin.determine_one_percenters()
 
+        description = "Successfully transferred #{amount} Pobcoin to #{target_user}!"
+          <> if not is_nil(memo), do: "\n**Memo**: *#{memo}*", else: ""
+
         embed =
           %Embed{}
           |> Embed.put_author(interaction.member.user.username, nil, Nostrum.Struct.User.avatar_url(interaction.member.user))
           |> Embed.put_footer(target_user.username, Nostrum.Struct.User.avatar_url(target_user))
-          |> Embed.put_description("Successfully transferred #{amount} Pobcoin to #{target_user}!")
+          |> Embed.put_description(description)
           |> Embed.put_field(interaction.member.user.username, "#{sender.coins} - #{amount} = **#{sender.coins - amount}**", true)
           |> Embed.put_field("<:pobcoin:850900816826073099>", "**#{amount} →**", true)
           |> Embed.put_field(target_user.username, "#{receiver.coins} + #{amount} = **#{receiver.coins + amount}**", true)
