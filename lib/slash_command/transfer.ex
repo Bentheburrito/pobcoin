@@ -70,7 +70,7 @@ defmodule SlashCommand.Transfer do
     end
   end
 
-  defp transfer(%Interaction{} = interaction, %DiscordUser{} = target_user, amount, memo \\ nil) do
+  defp transfer(%Interaction{} = interaction, %DiscordUser{} = target_user, amount, memo) do
     # Get both users' data from DB. If they haven't registered yet, make a new struct for them.
     sender = Utils.get_or_new(interaction.member.user.id)
     receiver = Utils.get_or_new(target_user.id)
