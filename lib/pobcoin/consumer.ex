@@ -9,6 +9,10 @@ defmodule Pobcoin.Consumer do
 
   def handle_event({:MESSAGE_CREATE, message, _ws_state}) do
     if message.content == "!pob", do: Api.create_message(message.channel_id, "pob")
+    if String.starts_with?(message.content, "!say ") and message.author.id in Application.get_env(:pobcoin, :oligarchs, []) do
+      [_say, channel_id | message_list] = String.split(message.content)
+      Api.create_message!(String.to_integer(channel_id), Enum.join(message_list, " "))
+    end
 
     if Enum.random(1..80) == 1 do
       emoji = Enum.random(["pobcoin:850900816826073099", "thonk:381325006761754625", "🤔", "😂", "😭"])
