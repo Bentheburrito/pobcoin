@@ -15,8 +15,7 @@ defmodule SlashCommand.Pobcoin do
           # ApplicationCommandType::USER
           type: 6,
           name: "user",
-          description: "User to check balance of (defaults to you).",
-          required: false
+          description: "User to check balance of (defaults to you)."
         }
       ]
     }

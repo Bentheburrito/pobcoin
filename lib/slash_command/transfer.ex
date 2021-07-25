@@ -34,8 +34,7 @@ defmodule SlashCommand.Transfer do
           # ApplicationCommandType::STRING
           type: 3,
           name: "memo",
-          description: "An optional memo for the transaction (200 character max).",
-          required: false,
+          description: "An optional memo for the transaction (200 character max)."
         }
       ]
     }
@@ -91,7 +90,7 @@ defmodule SlashCommand.Transfer do
         Pobcoin.determine_one_percenters()
 
         description = "Successfully transferred #{amount} Pobcoin to #{target_user}!"
-          <> if not is_nil(memo), do: "\n**Memo**: *#{memo}*", else: ""
+          <> if not is_nil(memo), do: "\n**“** *#{memo}* **”**", else: ""
 
         embed =
           %Embed{}

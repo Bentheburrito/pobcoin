@@ -19,6 +19,9 @@ defmodule SlashCommand do
   @callback ephemeral?() :: boolean()
   @optional_callbacks ephemeral?: 0
 
+  @unknown_command_error_message "Oops! I don't actually recognize that command. The developer has been notified and will address this if it's an issue"
+  @unknown_command_error_notif 254728052070678529
+
   def start_link(_init_args) do
     Agent.start_link(fn -> %{} end, name: __MODULE__)
   end
@@ -31,7 +34,6 @@ defmodule SlashCommand do
   def put(command_module) do
     %{name: command_name} = apply(command_module, :command_definition, [])
     Agent.update(__MODULE__, &Map.put(&1, command_name, {command_module, nil}))
-    register_command(command_module)
   end
 
   def put_register(command_name, reg_ack) do
@@ -75,7 +77,10 @@ defmodule SlashCommand do
   def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
     case get(name) do
       :notacommand ->
-        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name}")
+        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect interaction}")
+        dm_channel = Api.create_dm!(@unknown_command_error_notif)
+        Api.create_message(dm_channel.id, "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect interaction}")
+        Api.create_interaction_response(interaction, message_interaction_response(@unknown_command_error_message, true))
 
       {module, _reg_ack} ->
         case apply(module, :run, [interaction]) do
@@ -108,11 +113,40 @@ defmodule SlashCommand do
   end
 
   def init_commands() do
+    commands =
+      with [guild_id | _rest] <- Application.get_env(:pobcoin, :guilds, []),
+           {:ok, command_list} <- Api.get_guild_application_commands(guild_id) do
+        Enum.map(command_list, fn command_reg ->
+          {:ok, command_name} = Map.fetch(command_reg, :name)
+          {command_name, command_reg}
+        end)
+        |> Enum.into(%{})
+      end
     with {:ok, list} <- :application.get_key(:pobcoin, :modules) do
       list
       |> Enum.filter(&match?(["SlashCommand", _command], Module.split(&1)))
-      |> Enum.each(&put/1)
+      |> then(fn modules ->
+        Enum.each(modules, &put/1)
+        modules
+      end)
+      |> filter_by_local_updates(commands)
+      |> Enum.each(&register_command/1)
     end
+  end
+
+  defp filter_by_local_updates(slash_command_modules, registered_commands) do
+    Enum.filter(slash_command_modules, fn module ->
+      local_command = apply(module, :command_definition, [])
+      name = local_command.name
+      description = local_command.description
+      reg_command = Map.get(registered_commands, name)
+      if is_map_key(local_command, :options) do
+        options = local_command.options
+        not match?(%{name: ^name, description: ^description, options: ^options}, reg_command)
+      else
+        not match?(%{name: ^name, description: ^description}, reg_command)
+      end
+    end)
   end
 
   ### Impl
