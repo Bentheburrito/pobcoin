@@ -15,7 +15,11 @@ defmodule SlashCommand do
               :global
               | {:guild, guild_id :: Nostrum.Snowflake.t() | [Nostrum.Snowflake.t()]}
   @callback run(Interaction.t()) ::
-              {:response, map()} | {:message, String.t()} | {:embed, Embed.t()}
+              {:response, map()}
+              | {:message, String.t()}
+              | {:embed, Embed.t()}
+              | {:component_embed, list(), Embed.t()}
+              | {:component_message, list(), String.t()}
   @callback ephemeral?() :: boolean()
   @optional_callbacks ephemeral?: 0
 
@@ -77,10 +81,18 @@ defmodule SlashCommand do
   def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
     case get(name) do
       :notacommand ->
-        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect interaction}")
+        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"        )
+
         dm_channel = Api.create_dm!(@unknown_command_error_notif)
-        Api.create_message(dm_channel.id, "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect interaction}")
-        Api.create_interaction_response(interaction, message_interaction_response(@unknown_command_error_message, true))
+        Api.create_message(
+          dm_channel.id,
+          "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"
+        )
+
+        Api.create_interaction_response(
+          interaction,
+          message_interaction_response(@unknown_command_error_message, true)
+        )
 
       {module, _reg_ack} ->
         case apply(module, :run, [interaction]) do
@@ -108,6 +120,28 @@ defmodule SlashCommand do
               interaction,
               embed_interaction_response(embed, ephemeral)
             )
+
+          {:component_embed, components, %Embed{} = embed} ->
+            ephemeral =
+              if function_exported?(module, :ephemeral?, 0),
+                do: apply(module, :ephemeral?, []),
+                else: false
+
+            Api.create_interaction_response(
+              interaction,
+              component_embed_interaction_response(components, embed, ephemeral)
+            )
+
+          {:component_message, components, message} when is_binary(message) ->
+            ephemeral =
+              if function_exported?(module, :ephemeral?, 0),
+                do: apply(module, :ephemeral?, []),
+                else: false
+
+            Api.create_interaction_response(
+              interaction,
+              component_message_interaction_response(components, message, ephemeral)
+            )
         end
     end
   end
@@ -122,6 +156,7 @@ defmodule SlashCommand do
         end)
         |> Enum.into(%{})
       end
+
     with {:ok, list} <- :application.get_key(:pobcoin, :modules) do
       list
       |> Enum.filter(&match?(["SlashCommand", _command], Module.split(&1)))
@@ -140,6 +175,7 @@ defmodule SlashCommand do
       name = local_command.name
       description = local_command.description
       reg_command = Map.get(registered_commands, name)
+
       if is_map_key(local_command, :options) do
         options = local_command.options
         not match?(%{name: ^name, description: ^description, options: ^options}, reg_command)
@@ -178,7 +214,6 @@ defmodule SlashCommand do
 
       {:guild, guild_id} ->
         Api.delete_guild_application_command(guild_id, command_reg_ack.id)
-
     end
   end
 
@@ -211,5 +246,30 @@ defmodule SlashCommand do
   defp embed_interaction_response(embed, true) do
     embed_interaction_response(embed, false)
     |> put_in([:data, :flags], 64)
+  end
+
+  defp component_embed_interaction_response(components, embed, ephemeral) do
+    %{
+      type: 4,
+      data: %{
+        embeds: [
+          embed
+        ],
+        components: components
+      }
+    }
+    |> then(&if ephemeral, do: put_in(&1, [:data, :flags], 64), else: &1)
+  end
+
+  defp component_message_interaction_response(components, message, ephemeral) do
+    %{
+      # ChannelMessageWithSource
+      type: 4,
+      data: %{
+        content: message,
+        components: components
+      }
+    }
+    |> then(&if ephemeral, do: put_in(&1, [:data, :flags], 64), else: &1)
   end
 end

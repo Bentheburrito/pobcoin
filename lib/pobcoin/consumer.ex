@@ -21,7 +21,7 @@ defmodule Pobcoin.Consumer do
   end
 
   def handle_event({:INTERACTION_CREATE, interaction, _ws_state}) do
-    SlashCommand.handle_interaction(interaction)
+    Pobcoin.InteractionHandler.handle_interaction(interaction)
   end
 
   def handle_event({:READY, data, _ws_state}) do
