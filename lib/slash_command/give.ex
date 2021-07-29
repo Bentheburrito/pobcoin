@@ -55,7 +55,7 @@ defmodule SlashCommand.Give do
     %{"user" => target_id, "amount" => amount} = SlashCommand.get_options(interaction)
     cond do
       interaction.member.user.id not in Application.get_env(:pobcoin, :oligarchs, []) ->
-        {:message, "I'm the captain of this ship and I will [ban you for trying to inflate Pobcoin]! (/give is for Cousin Pob only)"}
+        {:message, "You're not pob, impobster (`/give` is for Pobsterlot only - did you mean to use `/transfer`?)"}
       amount == 0 ->
         {:message, "*message deleted by a moderator.*\n\n(You can't create zero Pobcoin)"}
       amount < 0 ->
