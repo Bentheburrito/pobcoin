@@ -47,11 +47,11 @@ defmodule SlashCommand.Pobcoin do
         |> Embed.put_color(Pobcoin.pob_purple())
         |> Embed.put_image(Pobcoin.pob_dollar_image_url())
 
-        {:embed, embed}
+        {:response, [embeds: [embed]]}
       else
-        true -> {:message, "Bots don't have Pobcoin :\\"}
+        true -> {:response, [content: "Bots don't have Pobcoin :\\"]}
         _ ->
-          {:message, "Unable to retrieve user"}
+          {:response, [content: "Unable to retrieve user"]}
     end
   end
 end

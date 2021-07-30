@@ -32,14 +32,14 @@ defmodule SlashCommand.Register do
 
     case Pobcoin.Repo.insert(changeset) do
       {:ok, %User{} = _user} ->
-        {:message, @success_message}
+        {:response, [content: @success_message]}
 
       {:error, %Ecto.Changeset{errors: [user_id: {"has already been taken", _constraint_list}]}} ->
-        {:message, "You've already been registered with Pobcoin."}
+        {:response, [content: "You've already been registered with Pobcoin."]}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         Logger.error("ERROR INSERTING NEW USER INTO DB (/register): #{inspect changeset.errors}")
-        {:message, @error_message}
+        {:response, [content: @error_message]}
     end
   end
 end

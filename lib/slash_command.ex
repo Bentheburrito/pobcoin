@@ -8,18 +8,16 @@ defmodule SlashCommand do
   require Logger
 
   alias Nostrum.Api
-  alias Nostrum.Struct.{Interaction, Embed}
+  alias Nostrum.Struct.Interaction
+  alias Pobcoin.InteractionHandler
 
   @callback command_definition() :: map()
   @callback command_scope() ::
               :global
               | {:guild, guild_id :: Nostrum.Snowflake.t() | [Nostrum.Snowflake.t()]}
   @callback run(Interaction.t()) ::
-              {:response, map()}
-              | {:message, String.t()}
-              | {:embed, Embed.t()}
-              | {:component_embed, list(), Embed.t()}
-              | {:component_message, list(), String.t()}
+              {:raw_response, map()}
+              | {:response, Keyword.t()}
   @callback ephemeral?() :: boolean()
   @optional_callbacks ephemeral?: 0
 
@@ -79,7 +77,19 @@ defmodule SlashCommand do
   end
 
   def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
-    case get(name) do
+    with {module, _reg_ack} <- get(name),
+         {:response, options} when is_list(options) <- apply(module, :run, [interaction]) do
+      ephemeral =
+        if function_exported?(module, :ephemeral?, 0) do
+          apply(module, :ephemeral?, [])
+        else
+          false
+        end
+      InteractionHandler.respond(interaction, options, ephemeral)
+
+    else
+      {:raw_response, res} when is_map(res) ->
+        Api.create_interaction_response(interaction, res)
       :notacommand ->
         Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"        )
 
@@ -89,60 +99,7 @@ defmodule SlashCommand do
           "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"
         )
 
-        Api.create_interaction_response(
-          interaction,
-          message_interaction_response(@unknown_command_error_message, true)
-        )
-
-      {module, _reg_ack} ->
-        case apply(module, :run, [interaction]) do
-          {:response, res} when is_map(res) ->
-            Api.create_interaction_response(interaction, res)
-
-          {:message, message} when is_binary(message) ->
-            ephemeral =
-              if function_exported?(module, :ephemeral?, 0),
-                do: apply(module, :ephemeral?, []),
-                else: false
-
-            Api.create_interaction_response(
-              interaction,
-              message_interaction_response(message, ephemeral)
-            )
-
-          {:embed, %Embed{} = embed} ->
-            ephemeral =
-              if function_exported?(module, :ephemeral?, 0),
-                do: apply(module, :ephemeral?, []),
-                else: false
-
-            Api.create_interaction_response(
-              interaction,
-              embed_interaction_response(embed, ephemeral)
-            )
-
-          {:component_embed, components, %Embed{} = embed} ->
-            ephemeral =
-              if function_exported?(module, :ephemeral?, 0),
-                do: apply(module, :ephemeral?, []),
-                else: false
-
-            Api.create_interaction_response(
-              interaction,
-              component_embed_interaction_response(components, embed, ephemeral)
-            )
-
-          {:component_message, components, message} when is_binary(message) ->
-            ephemeral =
-              if function_exported?(module, :ephemeral?, 0),
-                do: apply(module, :ephemeral?, []),
-                else: false
-
-            Api.create_interaction_response(
-              interaction,
-              component_message_interaction_response(components, message, ephemeral)
-            )
-        end
+        InteractionHandler.respond(interaction, @unknown_command_error_message, true)
     end
   end
 
@@ -215,61 +172,5 @@ defmodule SlashCommand do
       {:guild, guild_id} ->
         Api.delete_guild_application_command(guild_id, command_reg_ack.id)
     end
-  end
-
-  defp message_interaction_response(message, false) do
-    %{
-      # ChannelMessageWithSource
-      type: 4,
-      data: %{
-        content: message
-      }
-    }
-  end
-
-  defp message_interaction_response(message, true) do
-    message_interaction_response(message, false)
-    |> put_in([:data, :flags], 64)
-  end
-
-  defp embed_interaction_response(embed, false) do
-    %{
-      type: 4,
-      data: %{
-        embeds: [
-          embed
-        ]
-      }
-    }
-  end
-
-  defp embed_interaction_response(embed, true) do
-    embed_interaction_response(embed, false)
-    |> put_in([:data, :flags], 64)
-  end
-
-  defp component_embed_interaction_response(components, embed, ephemeral) do
-    %{
-      type: 4,
-      data: %{
-        embeds: [
-          embed
-        ],
-        components: components
-      }
-    }
-    |> then(&if ephemeral, do: put_in(&1, [:data, :flags], 64), else: &1)
-  end
-
-  defp component_message_interaction_response(components, message, ephemeral) do
-    %{
-      # ChannelMessageWithSource
-      type: 4,
-      data: %{
-        content: message,
-        components: components
-      }
-    }
-    |> then(&if ephemeral, do: put_in(&1, [:data, :flags], 64), else: &1)
   end
 end

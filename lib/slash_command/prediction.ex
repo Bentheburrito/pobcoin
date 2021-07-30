@@ -115,7 +115,7 @@ defmodule SlashCommand.Prediction do
       Pobcoin.Prediction.close_submissions(prompt)
     end)
 
-    {:component_embed, components, embed}
+    {:response, [components: components, embeds: [embed]]}
   end
 
   defp create_outcome_stats(outcome_stats) do

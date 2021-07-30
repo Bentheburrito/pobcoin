@@ -55,11 +55,11 @@ defmodule SlashCommand.Give do
     %{"user" => target_id, "amount" => amount} = SlashCommand.get_options(interaction)
     cond do
       interaction.member.user.id not in Application.get_env(:pobcoin, :oligarchs, []) ->
-        {:message, "You're not pob, impobster (`/give` is for Pobsterlot only - did you mean to use `/transfer`?)"}
+        {:response, [content: "You're not pob, impobster (`/give` is for Pobsterlot only - did you mean to use `/transfer`?)"]}
       amount == 0 ->
-        {:message, "*message deleted by a moderator.*\n\n(You can't create zero Pobcoin)"}
+        {:response, [content: "*message deleted by a moderator.*\n\n(You can't create zero Pobcoin)"]}
       amount < 0 ->
-        {:message, "lmfaopooooo nice try. (You can't create negative Pobcoin)"}
+        {:response, [content: "lmfaopooooo nice try. (You can't create negative Pobcoin)"]}
       true ->
         give(interaction, target_id, amount)
     end
@@ -77,11 +77,11 @@ defmodule SlashCommand.Give do
           _error -> "them"
         end
         Pobcoin.determine_one_percenters()
-        {:message, "Successfully created and gave #{amount} Pobcoin to #{target_user}!"}
+        {:response, [content: "Successfully created and gave #{amount} Pobcoin to #{target_user}!"]}
 
       {:error, %Ecto.Changeset{errors: errors}} ->
         Logger.error("ERROR INSERTING OR UPDATING USER (/give #{target_id} #{amount}): #{inspect errors}")
-        {:message, "Uhh something's gone horribly wrong I'm sorry lol\n\n(it didn't work)"}
+        {:response, [content: "Uhh something's gone horribly wrong I'm sorry lol\n\n(it didn't work)"]}
     end
   end
 end

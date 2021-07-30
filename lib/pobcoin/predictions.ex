@@ -27,7 +27,7 @@ defmodule Pobcoin.Prediction do
     {:ok, predictions}
   end
 
-  def handle_call({:new, prompt, outcome_1, outcome_2}, _from, predictions) when is_map_key(predictions, prompt) do
+  def handle_call({:new, prompt, _outcome_1, _outcome_2}, _from, predictions) when is_map_key(predictions, prompt) do
     {:reply, :already_a_prediction, predictions}
   end
 
@@ -54,7 +54,7 @@ defmodule Pobcoin.Prediction do
   end
 
   def handle_call({:close_submissions, prompt}, _from, predictions) do
-    # this is basically update_if_exists
+    # update_if_exists
     new_predictions =
       Map.has_key?(predictions, prompt)
       && Map.update!(predictions, prompt, fn prediction ->

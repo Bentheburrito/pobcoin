@@ -21,6 +21,6 @@ defmodule SlashCommand.Ping do
 
   @impl SlashCommand
   def run(%Interaction{} = _interaction) do
-    {:message, "pong!"}
+    {:response, [content: "pong!"]}
   end
 end
