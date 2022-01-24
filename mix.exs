@@ -22,7 +22,7 @@ defmodule Pobcoin.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:nostrum, "~> 0.4"},
+      {:nostrum, "~> 0.5-rc1"},
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
       {:dotenv_parser, "~> 1.2"}
