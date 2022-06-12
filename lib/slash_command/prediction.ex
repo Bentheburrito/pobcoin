@@ -60,9 +60,9 @@ defmodule SlashCommand.Prediction do
       "submission_period" => sub_period
     } = SlashCommand.get_options(interaction)
 
-    # TODO: Instead warn the user that a supplied outcome is over 80 characters
-    outcome_1 = String.slice(outcome_1, 0..79)
-    outcome_2 = String.slice(outcome_2, 0..79)
+		# TODO: Instead warn the user that a supplied outcome is over 80 characters
+    outcome_1 = outcome_1 |> to_string() |> String.slice(0..79)
+    outcome_2 = outcome_2 |> to_string() |> String.slice(0..79)
 
     outcomes = %{"outcome_1" => %{label: outcome_1}, "outcome_2" => %{label: outcome_2}}
     embed = create_prediction_embed(prompt, outcomes)
@@ -70,7 +70,7 @@ defmodule SlashCommand.Prediction do
     # create_prediction_message(id, prompt, outcomes, interaction.member.user)
     Pobcoin.PredictionHandler.new(id, token, prompt, outcome_1, outcome_2, sub_period)
 
-    {:response, [components: components, embeds: [embed]]}
+		{:response, [components: components, embeds: [embed]]}
   end
 
   def create_prediction_components(id, outcomes, disable_buttons \\ false) do

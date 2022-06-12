@@ -86,10 +86,12 @@ defmodule SlashCommand do
         else
           false
         end
+			IO.inspect "ABOUT TO RESPOND"
       InteractionHandler.respond(interaction, options, ephemeral)
 
     else
       {:raw_response, res} when is_map(res) ->
+				IO.inspect "RAW RESPONSE"
         Api.create_interaction_response(interaction, res)
       :notacommand ->
         Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"        )

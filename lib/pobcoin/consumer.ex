@@ -41,7 +41,7 @@ defmodule Pobcoin.Consumer do
     IO.puts("Logged in under user #{data.user.username}##{data.user.discriminator}")
     Api.update_status(:dnd, "twitch.tv/pobsterlot", 3)
 
-    SlashCommand.init_commands()
+		SlashCommand.init_commands()
   end
 
   def handle_event({event, reg_ack, _ws_state})

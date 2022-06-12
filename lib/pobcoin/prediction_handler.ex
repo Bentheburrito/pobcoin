@@ -7,6 +7,7 @@ defmodule Pobcoin.PredictionHandler do
   end
 
   def new(prediction_id, token, prompt, outcome_1, outcome_2, submission_period) do
+		IO.inspect "ASBOUT TO DO NEW PREDICTION IN PREDICTION HANDLER"
     GenServer.call(__MODULE__, {:new, prediction_id, token, prompt, outcome_1, outcome_2, submission_period})
   end
 
@@ -28,6 +29,7 @@ defmodule Pobcoin.PredictionHandler do
       "outcome_1" => %{label: outcome_1},
       "outcome_2" => %{label: outcome_2},
       prompt: prompt,
+			token: token,
       can_predict: true,
       submissions_close: DateTime.add(DateTime.now!("Etc/UTC"), submission_period * 60, :second)
     }
@@ -51,7 +53,7 @@ defmodule Pobcoin.PredictionHandler do
         end)
 
         {:reply, {:ok, new_predictions[id]}, new_predictions}
-    end
+    end |> IO.inspect(label: "result of PredictionHandler.predict()")
   end
 
   def handle_call({:close, id}, _from, predictions) do

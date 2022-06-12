@@ -27,7 +27,7 @@ defmodule Buttons do
       Logger.debug("#{interaction.member.user.username} predicted \"#{outcomes[outcome][:label]}\" with #{wager} Pobcoin")
       embed = SlashCommand.Prediction.create_prediction_embed(prediction.prompt, outcomes)
 
-      IO.inspect(Nostrum.Api.edit_interaction_response(interaction, %{embeds: [embed]}))
+      Nostrum.Api.edit_interaction_response(Nostrum.Cache.Me.get().id, prediction.token, %{embeds: [embed]})
       InteractionHandler.respond(interaction, [])
     else
       :submissions_closed ->
