@@ -9,6 +9,7 @@ defmodule SlashCommand do
 
   alias Nostrum.Api
   alias Nostrum.Struct.Interaction
+  alias Nostrum.Struct.ApplicationCommandInteractionData, as: InteractionData
   alias Pobcoin.InteractionHandler
 
   @callback command_definition() :: map()
@@ -58,10 +59,10 @@ defmodule SlashCommand do
   def get_options(%Interaction{data: data}) when not is_map_key(data, :options), do: %{}
 
   def get_options(%Interaction{data: data}) do
-    names = get_in(data, [:options, Access.all(), :name])
+    names = Enum.map(data.options, fn opt -> opt.name end)
 
     values =
-      get_in(data, [:options, Access.all(), :value])
+      Stream.map(data.options, fn opt -> opt.value end)
       |> Enum.map(fn
         val when is_binary(val) ->
           case Integer.parse(val) do
@@ -76,7 +77,7 @@ defmodule SlashCommand do
     Enum.zip(names, values) |> Map.new()
   end
 
-  def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
+  def handle_interaction(%Interaction{data: %InteractionData{name: name}} = interaction) do
     with {module, _reg_ack} <- get(name),
          {:response, options} when is_list(options) <- apply(module, :run, [interaction]) do
       ephemeral =

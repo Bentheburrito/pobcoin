@@ -2,10 +2,13 @@ import Config
 
 config :pobcoin, ecto_repos: [Pobcoin.Repo]
 
+config :nostrum,
+  token: System.get_env("BOT_TOKEN")
+
 config :pobcoin, Pobcoin.Repo,
   database: "pobcoin",
   username: "postgres",
-  password: "postgres",
+  password: System.get_env("DB_PASS") || "postgres",
   hostname: "localhost"
 
 config :pobcoin,

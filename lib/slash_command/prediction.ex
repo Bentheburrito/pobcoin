@@ -15,21 +15,21 @@ defmodule SlashCommand.Prediction do
           # ApplicationCommandType::STRING
           type: 3,
           name: "prompt",
-          description: "The prediction prompt (i.e. will Pob win the amongus?)",
+          description: "The prediction prompt (e.g. will Pob play among us today?)",
           required: true
         },
         %{
           # ApplicationCommandType::STRING
           type: 3,
           name: "outcome_1",
-          description: "The first possible outcome for the prediction.",
+          description: "The first possible outcome for the prediction (80 character max).",
           required: true
         },
         %{
           # ApplicationCommandType::STRING
           type: 3,
           name: "outcome_2",
-          description: "The second possible outcome for the prediction.",
+          description: "The second possible outcome for the prediction (80 character max).",
           required: true
         },
         %{
@@ -52,7 +52,7 @@ defmodule SlashCommand.Prediction do
   def ephemeral?, do: false
 
   @impl SlashCommand
-  def run(%Interaction{} = interaction) do
+  def run(%Interaction{id: id, token: token} = interaction) do
     %{
       "prompt" => prompt,
       "outcome_1" => outcome_1,
@@ -60,11 +60,26 @@ defmodule SlashCommand.Prediction do
       "submission_period" => sub_period
     } = SlashCommand.get_options(interaction)
 
-    components = [%{
+    # TODO: Instead warn the user that a supplied outcome is over 80 characters
+    outcome_1 = String.slice(outcome_1, 0..79)
+    outcome_2 = String.slice(outcome_2, 0..79)
+
+    outcomes = %{"outcome_1" => %{label: outcome_1}, "outcome_2" => %{label: outcome_2}}
+    embed = create_prediction_embed(prompt, outcomes)
+    components = create_prediction_components(id, outcomes)
+    # create_prediction_message(id, prompt, outcomes, interaction.member.user)
+    Pobcoin.PredictionHandler.new(id, token, prompt, outcome_1, outcome_2, sub_period)
+
+    {:response, [components: components, embeds: [embed]]}
+  end
+
+  def create_prediction_components(id, outcomes, disable_buttons \\ false) do
+    [%{
       "type" => 1,
       "components" => [%{
         "type" => 3,
-        "custom_id" => "pobcoin_selector",
+        "custom_id" => "pobcoin_selector:#{id}",
+        "disabled" => disable_buttons,
         "options" => Enum.map([0, 1, 5, 10, 25, 50, 100], fn amount ->
           %{
             "label" => "#{amount}",
@@ -80,48 +95,37 @@ defmodule SlashCommand.Prediction do
       }],
     }, %{
       "type" => 1,
-      "components" => [%{
-        "type" => 2,
-        "label" => outcome_1,
-        "style" => 1,
-        "custom_id" => "outcome_1"
-      },
-      %{
-        "type" => 2,
-        "label" => outcome_2,
-        "style" => 1,
-        "custom_id" => "outcome_2"
-      }]
+      "components" => Enum.map(outcomes, fn {outcome, %{label: label}} ->
+        %{
+          "type" => 2,
+          "label" => label,
+          "style" => 1,
+          "custom_id" => "#{outcome}:#{id}",
+          "disabled" => disable_buttons
+        }
+      end)
     }]
-
-    embed =
-      %Embed{}
-      |> Embed.put_author(
-        interaction.member.user.username,
-        nil,
-        Nostrum.Struct.User.avatar_url(interaction.member.user)
-      )
-      |> Embed.put_title(prompt)
-      |> Embed.put_description("Predict an outcome below!")
-      |> Embed.put_field(outcome_1, create_outcome_stats(%{}), true)
-      |> Embed.put_field(outcome_2, create_outcome_stats(%{}), true)
-      |> Embed.put_color(Pobcoin.pob_purple())
-      |> Embed.put_thumbnail(Pobcoin.pob_dollar_image_url())
-
-    Pobcoin.Prediction.new(prompt, "outcome_1", "outcome_2")
-    Task.start(fn ->
-      Process.sleep(sub_period * 60 * 1000)
-      # Edit discord message to disable buttons
-      Pobcoin.Prediction.close_submissions(prompt)
-    end)
-
-    {:response, [components: components, embeds: [embed]]}
   end
 
-  defp create_outcome_stats(outcome_stats) do
+  def create_prediction_embed(prompt, outcomes) do
+    %Embed{}
+    |> Embed.put_title(prompt)
+    |> Embed.put_description("Predict an outcome below!")
+    |> Embed.put_color(Pobcoin.pob_purple())
+    |> Embed.put_thumbnail(Pobcoin.pob_dollar_image_url())
+    |> then(&Enum.reduce(outcomes, &1, fn {outcome, stats}, embed ->
+      Embed.put_field(embed, outcome, create_outcome_info(stats), true)
+    end))
+  end
+
+  defp create_outcome_info(outcome_stats) do
     {total_wagered, total_participants} =
-      Enum.reduce(outcome_stats, {0, 0}, fn {_user_id, wager}, {cur_wagered, cur_participants} ->
-        {cur_wagered + wager, cur_participants + 1}
+      Enum.reduce(outcome_stats, {0, 0}, fn {_user_id, wager}, {cur_wagered, cur_participants} = acc ->
+        if is_number(wager) do
+          {cur_wagered + wager, cur_participants + 1}
+        else
+          acc
+        end
       end)
     """
     Users predicting: #{total_participants}

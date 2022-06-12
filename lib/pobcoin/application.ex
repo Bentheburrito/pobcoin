@@ -10,7 +10,8 @@ defmodule Pobcoin.Application do
     children = [
       Pobcoin.Repo,
       SlashCommand,
-      Pobcoin.Prediction,
+      Pobcoin.PredictionHandler.WagerSelections,
+      Pobcoin.PredictionHandler,
       {Pobcoin.Consumer, name: Pobcoin.Consumer}
     ]
 
