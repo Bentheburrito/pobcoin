@@ -37,21 +37,28 @@ defmodule SlashCommand.Pobcoin do
       |> Map.get("user", interaction.member.user.id)
 
     user = Utils.get_or_new(user_id)
+
     with {:ok, %Nostrum.Struct.User{} = discord_user} <- Nostrum.Api.get_user(user_id),
          bot? when bot? != true <- discord_user.bot do
       embed =
         %Embed{}
-        |> Embed.put_author(discord_user.username, nil, Nostrum.Struct.User.avatar_url(discord_user))
+        |> Embed.put_author(
+          discord_user.username,
+          nil,
+          Nostrum.Struct.User.avatar_url(discord_user)
+        )
         |> Embed.put_field("Pobcoin Balance", user.coins, true)
-        |> Embed.put_field("Status", user.one_percenter && "1%-er" || "Pobcoin User", true)
+        |> Embed.put_field("Status", (user.one_percenter && "1%-er") || "Pobcoin User", true)
         |> Embed.put_color(Pobcoin.pob_purple())
         |> Embed.put_image(Pobcoin.pob_dollar_image_url())
 
-        {:response, [embeds: [embed]]}
-      else
-        true -> {:response, [content: "Bots don't have Pobcoin :\\"]}
-        _ ->
-          {:response, [content: "Unable to retrieve user"]}
+      {:response, [embeds: [embed]]}
+    else
+      true ->
+        {:response, [content: "Bots don't have Pobcoin :\\"]}
+
+      _ ->
+        {:response, [content: "Unable to retrieve user"]}
     end
   end
 end

@@ -3,12 +3,16 @@ defmodule Pobcoin.PredictionHandler do
 
   ## API
   def start_link(_opts) do
-    GenServer.start_link(__MODULE__, %{}, [name: __MODULE__])
+    GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
   def new(prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id) do
-		IO.inspect "ASBOUT TO DO NEW PREDICTION IN PREDICTION HANDLER"
-    GenServer.call(__MODULE__, {:new, prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id})
+    IO.inspect("ASBOUT TO DO NEW PREDICTION IN PREDICTION HANDLER")
+
+    GenServer.call(
+      __MODULE__,
+      {:new, prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id}
+    )
   end
 
   def predict(prediction_id, outcome, user_id, wager) do
@@ -24,16 +28,21 @@ defmodule Pobcoin.PredictionHandler do
     {:ok, predictions}
   end
 
-  def handle_call({:new, id, token, prompt, outcome_1, outcome_2, submission_period, owner_id}, _from, predictions) do
+  def handle_call(
+        {:new, id, token, prompt, outcome_1, outcome_2, submission_period, owner_id},
+        _from,
+        predictions
+      ) do
     init_prediction = %{
       "outcome_1" => %{label: outcome_1},
       "outcome_2" => %{label: outcome_2},
       prompt: prompt,
-			token: token,
+      token: token,
       can_predict: true,
       submissions_close: DateTime.add(DateTime.now!("Etc/UTC"), submission_period * 60, :second),
-			owner_id: owner_id
+      owner_id: owner_id
     }
+
     Process.send_after(self(), {:close_submissions, id, token}, submission_period * 60 * 1000)
 
     {:reply, :ok, Map.put(predictions, id, init_prediction)}
@@ -41,6 +50,7 @@ defmodule Pobcoin.PredictionHandler do
 
   def handle_call({:predict, id, outcome, user_id, wager}, _from, predictions) do
     prediction = Map.get(predictions, id, %{})
+
     cond do
       user_predicted_diff_outcome?(user_id, outcome, prediction) ->
         {:reply, :already_predicted_diff_outcome, predictions}
@@ -49,36 +59,39 @@ defmodule Pobcoin.PredictionHandler do
         {:reply, :submissions_closed, predictions}
 
       true ->
-        new_predictions = Map.update!(predictions, id, fn %{^outcome => user_predictions} = prediction ->
-          %{prediction | outcome => Map.update(user_predictions, user_id, wager, &(&1 + wager))}
-        end)
+        new_predictions =
+          Map.update!(predictions, id, fn %{^outcome => user_predictions} = prediction ->
+            %{prediction | outcome => Map.update(user_predictions, user_id, wager, &(&1 + wager))}
+          end)
 
         {:reply, {:ok, new_predictions[id]}, new_predictions}
-    end |> IO.inspect(label: "result of PredictionHandler.predict()")
+    end
+    |> IO.inspect(label: "result of PredictionHandler.predict()")
   end
 
   def handle_call({:close, id, user_id}, _from, predictions) do
     {closed, new_predictions} = Map.pop(predictions, id, %{owner_id: nil})
-		if user_id != closed.owner_id do
-			{:reply, :unauthorized, predictions}
-		else
-			{:reply, {id, closed}, new_predictions}
-		end
+
+    if user_id != closed.owner_id do
+      {:reply, :unauthorized, predictions}
+    else
+      {:reply, {id, closed}, new_predictions}
+    end
   end
 
   def handle_info({:close_submissions, id, token}, predictions) do
     # update_if_exists
     new_predictions =
-      Map.has_key?(predictions, id)
-      && Map.update!(predictions, id, fn prediction ->
-        %{prediction | can_predict: false}
-      end)
-      || predictions
+      (Map.has_key?(predictions, id) &&
+         Map.update!(predictions, id, fn prediction ->
+           %{prediction | can_predict: false}
+         end)) ||
+        predictions
 
     with {:ok, prediction} <- Map.fetch(predictions, id),
-        outcomes_list <- Enum.filter(prediction, fn {_, stats} -> is_map(stats) and not is_struct(stats) end),
-        outcomes <- Map.new(outcomes_list) do
-
+         outcomes_list <-
+           Enum.filter(prediction, fn {_, stats} -> is_map(stats) and not is_struct(stats) end),
+         outcomes <- Map.new(outcomes_list) do
       embed = SlashCommand.Prediction.create_prediction_embed(prediction.prompt, outcomes)
       components = SlashCommand.Prediction.create_prediction_components(id, outcomes, true)
 
@@ -100,7 +113,9 @@ defmodule Pobcoin.PredictionHandler do
     |> Map.delete(newly_guessed_outcome)
     |> Enum.any?(fn
       {_outcome, stats} when is_map(stats) ->
-        Map.has_key?(stats, user_id) # User has predicted this outcome
+        # User has predicted this outcome
+        Map.has_key?(stats, user_id)
+
       _ ->
         false
     end)

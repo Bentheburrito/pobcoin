@@ -7,7 +7,7 @@ defmodule SlashCommand.Ping do
   def command_definition() do
     %{
       name: "ping",
-      description: "Pings the bot.",
+      description: "Pings the bot."
     }
   end
 
@@ -16,8 +16,8 @@ defmodule SlashCommand.Ping do
     {:guild, Application.get_env(:pobcoin, :guilds, [])}
   end
 
-    @impl SlashCommand
-    def ephemeral?, do: true
+  @impl SlashCommand
+  def ephemeral?, do: true
 
   @impl SlashCommand
   def run(%Interaction{} = _interaction) do

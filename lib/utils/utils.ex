@@ -8,9 +8,8 @@ defmodule Utils do
   """
   @spec get_or_new(user_id :: Nostrum.Snowflake.t()) :: %User{}
   def get_or_new(user_id) do
-    case Repo.one(from p in User, where: p.user_id == ^user_id) do
+    case Repo.one(from(p in User, where: p.user_id == ^user_id)) do
       nil -> %User{user_id: user_id, coins: 100}
-
       %User{} = user -> user
     end
   end

@@ -13,7 +13,7 @@ defmodule SlashCommand.Register do
   def command_definition() do
     %{
       name: "register",
-      description: "Registers a user with Pobcoin.",
+      description: "Registers a user with Pobcoin."
     }
   end
 
@@ -38,7 +38,7 @@ defmodule SlashCommand.Register do
         {:response, [content: "You've already been registered with Pobcoin."]}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        Logger.error("ERROR INSERTING NEW USER INTO DB (/register): #{inspect changeset.errors}")
+        Logger.error("ERROR INSERTING NEW USER INTO DB (/register): #{inspect(changeset.errors)}")
         {:response, [content: @error_message]}
     end
   end

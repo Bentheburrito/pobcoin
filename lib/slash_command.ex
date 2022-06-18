@@ -23,7 +23,7 @@ defmodule SlashCommand do
   @optional_callbacks ephemeral?: 0
 
   @unknown_command_error_message "Oops! I don't actually recognize that command. The developer has been notified and will address this if it's an issue"
-  @unknown_command_error_notif 254728052070678529
+  @unknown_command_error_notif 254_728_052_070_678_529
 
   def start_link(_init_args) do
     Agent.start_link(fn -> %{} end, name: __MODULE__)
@@ -86,17 +86,21 @@ defmodule SlashCommand do
         else
           false
         end
-			IO.inspect "ABOUT TO RESPOND"
-      InteractionHandler.respond(interaction, options, ephemeral)
 
+      IO.inspect("ABOUT TO RESPOND")
+      InteractionHandler.respond(interaction, options, ephemeral)
     else
       {:raw_response, res} when is_map(res) ->
-				IO.inspect "RAW RESPONSE"
+        IO.inspect("RAW RESPONSE")
         Api.create_interaction_response(interaction, res)
+
       :notacommand ->
-        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"        )
+        Logger.error(
+          "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"
+        )
 
         dm_channel = Api.create_dm!(@unknown_command_error_notif)
+
         Api.create_message(
           dm_channel.id,
           "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"
