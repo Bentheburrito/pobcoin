@@ -68,18 +68,18 @@ defmodule SlashCommand.Prediction do
     embed = create_prediction_embed(prompt, outcomes)
     components = create_prediction_components(id, outcomes)
     # create_prediction_message(id, prompt, outcomes, interaction.member.user)
-    Pobcoin.PredictionHandler.new(id, token, prompt, outcome_1, outcome_2, sub_period)
+    Pobcoin.PredictionHandler.new(id, token, prompt, outcome_1, outcome_2, sub_period, interaction.user.id)
 
 		{:response, [components: components, embeds: [embed]]}
   end
 
-  def create_prediction_components(id, outcomes, disable_buttons \\ false) do
+  def create_prediction_components(id, outcomes, disable_wager_buttons \\ false, disable_close_button \\ false) do
     [%{
       "type" => 1,
       "components" => [%{
         "type" => 3,
         "custom_id" => "pobcoin_selector:#{id}",
-        "disabled" => disable_buttons,
+        "disabled" => disable_wager_buttons,
         "options" => Enum.map([0, 1, 5, 10, 25, 50, 100], fn amount ->
           %{
             "label" => "#{amount}",
@@ -101,9 +101,19 @@ defmodule SlashCommand.Prediction do
           "label" => label,
           "style" => 1,
           "custom_id" => "#{outcome}:#{id}",
-          "disabled" => disable_buttons
+          "disabled" => disable_wager_buttons
         }
       end)
+			++ [%{
+				"type" => 2,
+				"label" =>
+					disable_close_button
+					&& "Prediction Closed"
+					|| "Close Prediction (prediction creator only)",
+				"style" => 3,
+				"custom_id" => "close:#{id}",
+				"disabled" => disable_close_button
+			}]
     }]
   end
 

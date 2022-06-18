@@ -6,17 +6,17 @@ defmodule Pobcoin.PredictionHandler do
     GenServer.start_link(__MODULE__, %{}, [name: __MODULE__])
   end
 
-  def new(prediction_id, token, prompt, outcome_1, outcome_2, submission_period) do
+  def new(prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id) do
 		IO.inspect "ASBOUT TO DO NEW PREDICTION IN PREDICTION HANDLER"
-    GenServer.call(__MODULE__, {:new, prediction_id, token, prompt, outcome_1, outcome_2, submission_period})
+    GenServer.call(__MODULE__, {:new, prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id})
   end
 
   def predict(prediction_id, outcome, user_id, wager) do
     GenServer.call(__MODULE__, {:predict, prediction_id, outcome, user_id, wager})
   end
 
-  def close(prediction_id) do
-    GenServer.call(__MODULE__, {:close, prediction_id})
+  def close(prediction_id, user_id) do
+    GenServer.call(__MODULE__, {:close, prediction_id, user_id})
   end
 
   ## Impl
@@ -24,14 +24,15 @@ defmodule Pobcoin.PredictionHandler do
     {:ok, predictions}
   end
 
-  def handle_call({:new, id, token, prompt, outcome_1, outcome_2, submission_period}, _from, predictions) do
+  def handle_call({:new, id, token, prompt, outcome_1, outcome_2, submission_period, owner_id}, _from, predictions) do
     init_prediction = %{
       "outcome_1" => %{label: outcome_1},
       "outcome_2" => %{label: outcome_2},
       prompt: prompt,
 			token: token,
       can_predict: true,
-      submissions_close: DateTime.add(DateTime.now!("Etc/UTC"), submission_period * 60, :second)
+      submissions_close: DateTime.add(DateTime.now!("Etc/UTC"), submission_period * 60, :second),
+			owner_id: owner_id
     }
     Process.send_after(self(), {:close_submissions, id, token}, submission_period * 60 * 1000)
 
@@ -56,9 +57,13 @@ defmodule Pobcoin.PredictionHandler do
     end |> IO.inspect(label: "result of PredictionHandler.predict()")
   end
 
-  def handle_call({:close, id}, _from, predictions) do
-    {closed, new_predictions} = Map.pop(predictions, id, :none)
-    {:reply, closed, new_predictions}
+  def handle_call({:close, id, user_id}, _from, predictions) do
+    {closed, new_predictions} = Map.pop(predictions, id, %{owner_id: nil})
+		if user_id != closed.owner_id do
+			{:reply, :unauthorized, predictions}
+		else
+			{:reply, {id, closed}, new_predictions}
+		end
   end
 
   def handle_info({:close_submissions, id, token}, predictions) do
