@@ -64,7 +64,7 @@ defmodule SlashCommand.Prediction do
     outcome_1 = outcome_1 |> to_string() |> String.slice(0..79)
     outcome_2 = outcome_2 |> to_string() |> String.slice(0..79)
 
-    outcomes = %{"outcome_1" => %{label: outcome_1}, "outcome_2" => %{label: outcome_2}}
+    outcomes = %{outcome_1 => %{}, outcome_2 => %{}}
     embed = create_prediction_embed(prompt, outcomes)
     components = create_prediction_components(id, outcomes)
     # create_prediction_message(id, prompt, outcomes, interaction.member.user)
@@ -114,12 +114,12 @@ defmodule SlashCommand.Prediction do
       %{
         "type" => 1,
         "components" =>
-          Enum.map(outcomes, fn {outcome, %{label: label}} ->
+          Enum.map(outcomes, fn {label, _votes} ->
             %{
               "type" => 2,
               "label" => label,
               "style" => 1,
-              "custom_id" => "#{outcome}:#{id}",
+              "custom_id" => "#{label}:#{id}",
               "disabled" => disable_wager_buttons
             }
           end) ++
@@ -145,23 +145,54 @@ defmodule SlashCommand.Prediction do
     |> Embed.put_description("Predict an outcome below!")
     |> Embed.put_color(Pobcoin.pob_purple())
     |> Embed.put_thumbnail(Pobcoin.pob_dollar_image_url())
-    |> then(
-      &Enum.reduce(outcomes, &1, fn {outcome, stats}, embed ->
-        Embed.put_field(embed, outcome, create_outcome_info(stats), true)
+    |> then(fn embed ->
+      Enum.reduce(outcomes, embed, fn {label, votes}, embed ->
+        Embed.put_field(embed, label, create_outcome_info(votes), true)
       end)
-    )
+    end)
   end
 
-  defp create_outcome_info(outcome_stats) do
-    {total_wagered, total_participants} =
-      Enum.reduce(outcome_stats, {0, 0}, fn {_user_id, wager},
-                                            {cur_wagered, cur_participants} = acc ->
-        if is_number(wager) do
-          {cur_wagered + wager, cur_participants + 1}
-        else
-          acc
-        end
-      end)
+  @doc """
+  tallies total votes, grouped by outcome. You can also tally the participants based on `participant_tally_type`
+
+  - `:count`: Count each vote (not guaranteed to uniquely identify each participant).
+  - `:ids`: Adds each voter's ID to a list (like with `:count`, the list could contain duplicate IDs).
+  - `:none`: No tallying of participants, just the wager
+  """
+  @spec tally_outcome_votes(
+          votes :: %{Nostrum.Snowflake.t() => integer()},
+          participant_tally_type :: :ids | :count | :none
+        ) :: {integer(), integer() | list()} | integer()
+  def tally_outcome_votes(votes, participant_tally_type \\ :count)
+      when participant_tally_type in [:ids, :count, :none] do
+    init_acc =
+      case participant_tally_type do
+        :count -> {0, 0}
+        :ids -> {0, []}
+        :none -> 0
+      end
+
+    Enum.reduce(votes, init_acc, &tally_reducer/2)
+  end
+
+  defp tally_reducer({_user_id, wager}, acc) when not is_number(wager), do: acc
+
+  defp tally_reducer({_user_id, wager}, {cur_wagered, participant_count})
+       when is_integer(participant_count) do
+    {cur_wagered + wager, participant_count + 1}
+  end
+
+  defp tally_reducer({user_id, wager}, {cur_wagered, participant_ids})
+       when is_list(participant_ids) do
+    {cur_wagered + wager, [user_id | participant_ids]}
+  end
+
+  defp tally_reducer({_user_id, wager}, cur_wagered) do
+    cur_wagered + wager
+  end
+
+  defp create_outcome_info(outcome_votes) do
+    {total_wagered, total_participants} = tally_outcome_votes(outcome_votes)
 
     """
     Users predicting: #{total_participants}

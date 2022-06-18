@@ -13,4 +13,12 @@ defmodule Utils do
       %User{} = user -> user
     end
   end
+
+  @spec update_in(Access.t(), [term, ...], term, (term -> term)) :: Access.t()
+  def update_in(data, keys, default, fun) do
+    case get_in(data, keys) do
+      nil -> put_in(data, keys, default)
+      value -> put_in(data, keys, fun.(value))
+    end
+  end
 end

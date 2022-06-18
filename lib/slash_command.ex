@@ -56,6 +56,12 @@ defmodule SlashCommand do
   end
 
   @spec get_options(Interaction.t()) :: %{String.t() => integer() | String.t()}
+  def get_options(%Interaction{
+        data: %Nostrum.Struct.ApplicationCommandInteractionData{options: nil}
+      }) do
+    %{}
+  end
+
   def get_options(%Interaction{data: data}) when not is_map_key(data, :options), do: %{}
 
   def get_options(%Interaction{data: data}) do

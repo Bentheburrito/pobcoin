@@ -23,6 +23,11 @@ defmodule Pobcoin.PredictionHandler do
     GenServer.call(__MODULE__, {:close, prediction_id, user_id})
   end
 
+  @spec get(Nostrum.Snowflake.t()) :: {:ok, prediction :: map()} | :error
+  def get(prediction_id) do
+    GenServer.call(__MODULE__, {:get, prediction_id})
+  end
+
   ## Impl
   def init(predictions) do
     {:ok, predictions}
@@ -34,8 +39,7 @@ defmodule Pobcoin.PredictionHandler do
         predictions
       ) do
     init_prediction = %{
-      "outcome_1" => %{label: outcome_1},
-      "outcome_2" => %{label: outcome_2},
+      outcomes: %{outcome_1 => %{}, outcome_2 => %{}},
       prompt: prompt,
       token: token,
       can_predict: true,
@@ -49,7 +53,7 @@ defmodule Pobcoin.PredictionHandler do
   end
 
   def handle_call({:predict, id, outcome, user_id, wager}, _from, predictions) do
-    prediction = Map.get(predictions, id, %{})
+    prediction = Map.get(predictions, id, %{outcomes: %{}})
 
     cond do
       user_predicted_diff_outcome?(user_id, outcome, prediction) ->
@@ -60,9 +64,8 @@ defmodule Pobcoin.PredictionHandler do
 
       true ->
         new_predictions =
-          Map.update!(predictions, id, fn %{^outcome => user_predictions} = prediction ->
-            %{prediction | outcome => Map.update(user_predictions, user_id, wager, &(&1 + wager))}
-          end)
+          Utils.update_in(predictions, [id, :outcomes, outcome, user_id], wager, &(&1 + wager))
+          |> IO.inspect(label: "NEW_PREDICTIONS")
 
         {:reply, {:ok, new_predictions[id]}, new_predictions}
     end
@@ -79,42 +82,40 @@ defmodule Pobcoin.PredictionHandler do
     end
   end
 
+  def handle_call({:get, id}, _from, predictions) do
+    {:reply, Map.fetch(predictions, id), predictions}
+  end
+
   def handle_info({:close_submissions, id, token}, predictions) do
-    # update_if_exists
-    new_predictions =
-      (Map.has_key?(predictions, id) &&
-         Map.update!(predictions, id, fn prediction ->
-           %{prediction | can_predict: false}
-         end)) ||
-        predictions
+    case Map.fetch(predictions, id) do
+      {:ok, prediction} ->
+        embed =
+          SlashCommand.Prediction.create_prediction_embed(prediction.prompt, prediction.outcomes)
 
-    with {:ok, prediction} <- Map.fetch(predictions, id),
-         outcomes_list <-
-           Enum.filter(prediction, fn {_, stats} -> is_map(stats) and not is_struct(stats) end),
-         outcomes <- Map.new(outcomes_list) do
-      embed = SlashCommand.Prediction.create_prediction_embed(prediction.prompt, outcomes)
-      components = SlashCommand.Prediction.create_prediction_components(id, outcomes, true)
+        components =
+          SlashCommand.Prediction.create_prediction_components(id, prediction.outcomes, true)
 
-      Nostrum.Api.edit_interaction_response(token, %{embeds: [embed], components: components})
+        Nostrum.Api.edit_interaction_response(token, %{embeds: [embed], components: components})
 
-      new_predictions =
-        Map.update!(predictions, id, fn prediction ->
-          %{prediction | can_predict: false}
-        end)
+        new_predictions =
+          Map.update!(predictions, id, fn prediction ->
+            %{prediction | can_predict: false}
+          end)
 
-      {:noreply, new_predictions}
-    else
-      _ -> {:noreply, predictions}
+        {:noreply, new_predictions}
+
+      _ ->
+        {:noreply, predictions}
     end
   end
 
   defp user_predicted_diff_outcome?(user_id, newly_guessed_outcome, prediction) do
-    prediction
+    Map.get(prediction, :outcomes, %{})
     |> Map.delete(newly_guessed_outcome)
     |> Enum.any?(fn
-      {_outcome, stats} when is_map(stats) ->
+      {_outcome, votes} when is_map(votes) ->
         # User has predicted this outcome
-        Map.has_key?(stats, user_id)
+        Map.has_key?(votes, user_id)
 
       _ ->
         false

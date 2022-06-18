@@ -1,4 +1,5 @@
 defmodule Buttons do
+  alias Ecto.Multi
   alias Nostrum.Struct.Interaction
   alias Pobcoin.InteractionHandler
   alias Pobcoin.PredictionHandler.WagerSelections
@@ -16,10 +17,16 @@ defmodule Buttons do
       ) do
     user_id = interaction.member.user.id
     prediction_id = String.to_integer(prediction_id_str)
+    wager_id = {prediction_id, user_id}
 
-    WagerSelections.put_selection({prediction_id, user_id}, String.to_integer(pobcoin_amount_str))
+    case WagerSelections.put_selection(wager_id, String.to_integer(pobcoin_amount_str)) do
+      :not_enough_coins ->
+        response = [content: "You don't have enough Pobcoin to wager that much!"]
+        InteractionHandler.respond(interaction, response, true)
 
-    InteractionHandler.respond(interaction, [])
+      :ok ->
+        InteractionHandler.respond(interaction, [])
+    end
   end
 
   def handle_interaction(
@@ -38,19 +45,20 @@ defmodule Buttons do
 
       {id, prediction} ->
         # update the embed
-        outcomes = %{
-          "outcome_1" => prediction["outcome_1"],
-          "outcome_2" => prediction["outcome_2"]
-        }
 
         embed =
           SlashCommand.Prediction.create_prediction_embed(
             "[CLOSED] " <> prediction.prompt,
-            outcomes
+            prediction.outcomes
           )
 
         components =
-          SlashCommand.Prediction.create_prediction_components(id, outcomes, true, true)
+          SlashCommand.Prediction.create_prediction_components(
+            id,
+            prediction.outcomes,
+            true,
+            true
+          )
 
         Nostrum.Api.edit_interaction_response(Nostrum.Cache.Me.get().id, prediction.token, %{
           embeds: [embed],
@@ -58,33 +66,53 @@ defmodule Buttons do
         })
 
         # distribute pobcoin
+        # wage_reducer = fn {user_id, wager}, {cur_wagered, participants} = acc ->
+        #   if is_number(wager) do
+        #     {cur_wagered + wager, Map.update(participants, user_id, wager, &(&1 + 1))}
+        #   else
+        #     acc
+        #   end
+        # end
+
+        # [{_, winners}, {_, losers}] =
+        #   for outcome <- outcomes do
+        #     {_total_wagered, _participants} = Enum.reduce(outcome, {0, 0}, wage_reducer)
+        #   end
+        #   |> Enum.sort_by(&elem(&1, 0), :asc)
+
+        #   sender_cs = User.changeset(sender, %{"coins" => sender.coins - amount})
+        #   receiver_cs = User.changeset(receiver, %{"coins" => receiver.coins + amount})
+        # multi =
+        #   winners
+        #   Enum.reduce(Multi.new(), fn {user_id, wager}, multi ->
+
+        #   end)
+        #   |> Multi.insert_or_update(:withdraw, sender_cs)
+        #   |> Multi.insert_or_update(:deposit, receiver_cs)
 
         # send success message
         InteractionHandler.respond(
           interaction,
-          [content: "Successfully closed interaction!"],
+          [content: "Successfully closed prediction!"],
           true
         )
     end
   end
 
-  def handle_interaction(
-        %Interaction{data: %{custom_id: <<outcome::binary-size(9)>> <> ":" <> prediction_id_str}} =
-          interaction
-      ) do
+  def handle_interaction(%Interaction{data: %{custom_id: custom_id}} = interaction) do
+    [outcome_label, prediction_id_str] = String.split(custom_id, ":")
     user_id = interaction.member.user.id
     prediction_id = String.to_integer(prediction_id_str)
-    wager = WagerSelections.get_selection({prediction_id, user_id})
 
-    with {:ok, prediction} <- PredictionHandler.predict(prediction_id, outcome, user_id, wager),
-         outcomes_list <-
-           Enum.filter(prediction, fn {_, stats} -> is_map(stats) and not is_struct(stats) end),
-         outcomes <- Map.new(outcomes_list) do
+    with {:ok, wager} <- WagerSelections.get_selection({prediction_id, user_id}),
+         {:ok, prediction} <-
+           PredictionHandler.predict(prediction_id, outcome_label, user_id, wager) do
       Logger.debug(
-        "#{interaction.member.user.username} predicted \"#{outcomes[outcome][:label]}\" with #{wager} Pobcoin"
+        "#{interaction.member.user.username} predicted \"#{outcome_label}\" with #{wager} Pobcoin"
       )
 
-      embed = SlashCommand.Prediction.create_prediction_embed(prediction.prompt, outcomes)
+      embed =
+        SlashCommand.Prediction.create_prediction_embed(prediction.prompt, prediction.outcomes)
 
       Nostrum.Api.edit_interaction_response(Nostrum.Cache.Me.get().id, prediction.token, %{
         embeds: [embed]
@@ -93,29 +121,28 @@ defmodule Buttons do
       InteractionHandler.respond(interaction, [])
     else
       :submissions_closed ->
-        InteractionHandler.respond(
-          interaction,
-          [content: "Sorry, submissions have closed for this prediction!"],
-          true
-        )
+        response = [content: "Sorry, submissions have closed for this prediction!"]
+
+        InteractionHandler.respond(interaction, response, true)
 
       :already_predicted_diff_outcome ->
-        InteractionHandler.respond(
-          interaction,
-          [content: "You've already predicted a different outcome, haha"],
-          true
-        )
+        response = [content: "You've already predicted a different outcome, haha"]
+
+        InteractionHandler.respond(interaction, response, true)
+
+      :error ->
+        response = [content: "You need to select a valid wager before predicting"]
+
+        InteractionHandler.respond(interaction, response, true)
 
       e ->
         Logger.error(
           "Something went wrong with a button press: Unknown response from PredictionHandler: #{inspect(e)}"
         )
 
-        InteractionHandler.respond(
-          interaction,
-          [content: "Uh oh, something went very wrong, please try again in a bit."],
-          true
-        )
+        response = [content: "Uh oh, something went very wrong, please try again in a bit."]
+
+        InteractionHandler.respond(interaction, response, true)
     end
   end
 end
