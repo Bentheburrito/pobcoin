@@ -8,19 +8,22 @@ defmodule SlashCommand do
   require Logger
 
   alias Nostrum.Api
-  alias Nostrum.Struct.{Interaction, Embed}
+  alias Nostrum.Struct.Interaction
+  alias Nostrum.Struct.ApplicationCommandInteractionData, as: InteractionData
+  alias Pobcoin.InteractionHandler
 
   @callback command_definition() :: map()
   @callback command_scope() ::
               :global
               | {:guild, guild_id :: Nostrum.Snowflake.t() | [Nostrum.Snowflake.t()]}
   @callback run(Interaction.t()) ::
-              {:response, map()} | {:message, String.t()} | {:embed, Embed.t()}
+              {:raw_response, map()}
+              | {:response, Keyword.t()}
   @callback ephemeral?() :: boolean()
   @optional_callbacks ephemeral?: 0
 
   @unknown_command_error_message "Oops! I don't actually recognize that command. The developer has been notified and will address this if it's an issue"
-  @unknown_command_error_notif 254728052070678529
+  @unknown_command_error_notif 254_728_052_070_678_529
 
   def start_link(_init_args) do
     Agent.start_link(fn -> %{} end, name: __MODULE__)
@@ -53,13 +56,19 @@ defmodule SlashCommand do
   end
 
   @spec get_options(Interaction.t()) :: %{String.t() => integer() | String.t()}
+  def get_options(%Interaction{
+        data: %Nostrum.Struct.ApplicationCommandInteractionData{options: nil}
+      }) do
+    %{}
+  end
+
   def get_options(%Interaction{data: data}) when not is_map_key(data, :options), do: %{}
 
   def get_options(%Interaction{data: data}) do
-    names = get_in(data, [:options, Access.all(), :name])
+    names = Enum.map(data.options, fn opt -> opt.name end)
 
     values =
-      get_in(data, [:options, Access.all(), :value])
+      Stream.map(data.options, fn opt -> opt.value end)
       |> Enum.map(fn
         val when is_binary(val) ->
           case Integer.parse(val) do
@@ -74,41 +83,34 @@ defmodule SlashCommand do
     Enum.zip(names, values) |> Map.new()
   end
 
-  def handle_interaction(%Interaction{data: %{name: name}} = interaction) do
-    case get(name) do
-      :notacommand ->
-        Logger.error("INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect interaction}")
-        dm_channel = Api.create_dm!(@unknown_command_error_notif)
-        Api.create_message(dm_channel.id, "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect interaction}")
-        Api.create_interaction_response(interaction, message_interaction_response(@unknown_command_error_message, true))
-
-      {module, _reg_ack} ->
-        case apply(module, :run, [interaction]) do
-          {:response, res} when is_map(res) ->
-            Api.create_interaction_response(interaction, res)
-
-          {:message, message} when is_binary(message) ->
-            ephemeral =
-              if function_exported?(module, :ephemeral?, 0),
-                do: apply(module, :ephemeral?, []),
-                else: false
-
-            Api.create_interaction_response(
-              interaction,
-              message_interaction_response(message, ephemeral)
-            )
-
-          {:embed, %Embed{} = embed} ->
-            ephemeral =
-              if function_exported?(module, :ephemeral?, 0),
-                do: apply(module, :ephemeral?, []),
-                else: false
-
-            Api.create_interaction_response(
-              interaction,
-              embed_interaction_response(embed, ephemeral)
-            )
+  def handle_interaction(%Interaction{data: %InteractionData{name: name}} = interaction) do
+    with {module, _reg_ack} <- get(name),
+         {:response, options} when is_list(options) <- apply(module, :run, [interaction]) do
+      ephemeral =
+        if function_exported?(module, :ephemeral?, 0) do
+          apply(module, :ephemeral?, [])
+        else
+          false
         end
+
+      InteractionHandler.respond(interaction, options, ephemeral)
+    else
+      {:raw_response, res} when is_map(res) ->
+        Api.create_interaction_response(interaction, res)
+
+      :notacommand ->
+        Logger.error(
+          "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"
+        )
+
+        dm_channel = Api.create_dm!(@unknown_command_error_notif)
+
+        Api.create_message(
+          dm_channel.id,
+          "INTERACTION RECEIVED FOR UNKNOWN COMMAND: #{name} | interaction: #{inspect(interaction)}"
+        )
+
+        InteractionHandler.respond(interaction, @unknown_command_error_message, true)
     end
   end
 
@@ -122,6 +124,7 @@ defmodule SlashCommand do
         end)
         |> Enum.into(%{})
       end
+
     with {:ok, list} <- :application.get_key(:pobcoin, :modules) do
       list
       |> Enum.filter(&match?(["SlashCommand", _command], Module.split(&1)))
@@ -140,6 +143,7 @@ defmodule SlashCommand do
       name = local_command.name
       description = local_command.description
       reg_command = Map.get(registered_commands, name)
+
       if is_map_key(local_command, :options) do
         options = local_command.options
         not match?(%{name: ^name, description: ^description, options: ^options}, reg_command)
@@ -178,38 +182,6 @@ defmodule SlashCommand do
 
       {:guild, guild_id} ->
         Api.delete_guild_application_command(guild_id, command_reg_ack.id)
-
     end
-  end
-
-  defp message_interaction_response(message, false) do
-    %{
-      # ChannelMessageWithSource
-      type: 4,
-      data: %{
-        content: message
-      }
-    }
-  end
-
-  defp message_interaction_response(message, true) do
-    message_interaction_response(message, false)
-    |> put_in([:data, :flags], 64)
-  end
-
-  defp embed_interaction_response(embed, false) do
-    %{
-      type: 4,
-      data: %{
-        embeds: [
-          embed
-        ]
-      }
-    }
-  end
-
-  defp embed_interaction_response(embed, true) do
-    embed_interaction_response(embed, false)
-    |> put_in([:data, :flags], 64)
   end
 end

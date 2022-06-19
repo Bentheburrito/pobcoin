@@ -22,7 +22,7 @@ defmodule Pobcoin.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:nostrum, "~> 0.4"},
+      {:nostrum, github: "Kraigie/nostrum"},
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
       {:dotenv_parser, "~> 1.2"}

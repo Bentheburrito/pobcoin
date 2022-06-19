@@ -5,7 +5,7 @@ if Config.config_env() == :dev do
 end
 
 config :nostrum,
-  token: System.get_env("BOT_TOKEN") # The token of your bot as a string
+  token: System.get_env("BOT_TOKEN")
 
 config :pobcoin, Pobcoin.Repo,
   database: "pobcoin",
