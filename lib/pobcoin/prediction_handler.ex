@@ -28,6 +28,10 @@ defmodule Pobcoin.PredictionHandler do
     GenServer.call(__MODULE__, {:get, prediction_id})
   end
 
+  def get_users_wagered(user_id) do
+    GenServer.call(__MODULE__, {:users_wagered, user_id})
+  end
+
   ## Impl
   def init(predictions) do
     {:ok, predictions}
@@ -87,12 +91,24 @@ defmodule Pobcoin.PredictionHandler do
       {:reply, :unauthorized, predictions}
     else
       Pobcoin.PredictionHandler.WagerSelections.clear_for(id)
+      Pobcoin.determine_one_percenters()
       {:reply, {id, closed}, new_predictions}
     end
   end
 
   def handle_call({:get, id}, _from, predictions) do
     {:reply, Map.fetch(predictions, id), predictions}
+  end
+
+  def handle_call({:users_wagered, user_id}, _from, predictions) do
+    total_wagered =
+      Enum.reduce(predictions, 0, fn {_id, prediction}, total_wagered ->
+        Stream.map(prediction.outcomes, &Map.get(elem(&1, 1), user_id, 0))
+        |> Enum.sum()
+        |> Kernel.+(total_wagered)
+      end)
+
+    {:reply, total_wagered, predictions}
   end
 
   def handle_info({:close_submissions, id, token}, predictions) do

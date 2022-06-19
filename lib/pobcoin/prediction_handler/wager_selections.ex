@@ -10,12 +10,10 @@ defmodule Pobcoin.PredictionHandler.WagerSelections do
   end
 
   def put_selection({prediction_id, user_id} = id, wager) do
-    total_wagered = get_total_wagered(user_id, prediction_id)
-    IO.inspect(wager, label: "wager")
-    IO.inspect(total_wagered, label: "total")
+    total_wagered =
+      get_total_wagered(user_id, prediction_id) +
+        Pobcoin.PredictionHandler.get_users_wagered(user_id)
 
-    # This logic does not include the amount of submitted wagers in PredictionHandlers, so the user could theoretically
-    # go in debt.
     case Utils.get_or_new(user_id) do
       %User{coins: coins} when coins >= wager + total_wagered ->
         Logger.info("Putting #{wager} under #{inspect(id)}")
@@ -42,10 +40,9 @@ defmodule Pobcoin.PredictionHandler.WagerSelections do
   def clear_for(prediction_id) do
     Agent.update(
       __MODULE__,
-      &Enum.filter(&1, fn
-        {^prediction_id, _} -> false
-        _ -> true
-      end)
+      &for {pred_id, user_id} when pred_id != prediction_id <- &1, into: %{} do
+        {pred_id, user_id}
+      end
     )
   end
 end
