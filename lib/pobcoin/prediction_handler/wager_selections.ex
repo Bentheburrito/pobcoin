@@ -29,6 +29,10 @@ defmodule Pobcoin.PredictionHandler.WagerSelections do
     Agent.get(__MODULE__, fn wagers -> Map.fetch(wagers, id) end)
   end
 
+  def delete_selection(id) do
+    Agent.update(__MODULE__, fn wagers -> Map.delete(wagers, id) end)
+  end
+
   def get_total_wagered(user_id, excluding_prediction_id \\ nil) do
     Agent.get(__MODULE__, fn wagers ->
       for {{pred_id, ^user_id}, wager} <- wagers, pred_id != excluding_prediction_id, reduce: 0 do

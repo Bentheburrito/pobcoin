@@ -179,6 +179,7 @@ defmodule SlashCommand.Prediction do
     |> Embed.put_description("Predict an outcome below!")
     |> Embed.put_color(Pobcoin.pob_purple())
     |> Embed.put_thumbnail(Pobcoin.pob_dollar_image_url())
+    |> Embed.put_footer("Check your current balance of pobcoin with /pobcoin")
     |> then(fn embed ->
       Enum.reduce(outcomes, embed, fn {label, votes}, embed ->
         Embed.put_field(embed, label, create_outcome_info(votes), true)

@@ -1,6 +1,6 @@
 defmodule Buttons do
   alias Ecto.Multi
-  alias Nostrum.Struct.Interaction
+  alias Nostrum.Struct.{Embed, Interaction}
   alias Pobcoin.InteractionHandler
   alias Pobcoin.PredictionHandler.WagerSelections
   alias Pobcoin.PredictionHandler
@@ -42,65 +42,24 @@ defmodule Buttons do
     prediction_id = String.to_integer(prediction_id_str)
 
     case PredictionHandler.close(prediction_id, user_id) do
-      :unauthorized ->
+      :not_found ->
         InteractionHandler.respond(
           interaction,
-          [content: "You didn't create this prediction!"],
+          [content: "You already closed this prediction!"],
           true
         )
 
       {id, prediction} ->
-        # update the embed
-
-        embed =
-          SlashCommand.Prediction.create_prediction_embed(
-            "[CLOSED] " <> prediction.prompt,
-            prediction.outcomes
-          )
-
-        components =
-          SlashCommand.Prediction.create_prediction_components(
-            id,
-            prediction.outcomes,
-            true,
-            true
-          )
-
-        {channel_id, message_id} = prediction.token
-
-        Nostrum.Api.edit_message(channel_id, message_id, %{
-          embeds: [embed],
-          components: components
-        })
-
         # distribute pobcoin
         {:ok, {winning_outcome, losing_outcome}} =
           Map.fetch(prediction.label_map, outcome_label_hash)
 
-        {winners_votes, winners_wagered} =
-          Map.get(prediction.outcomes, winning_outcome)
-          |> then(fn votes ->
-            total_wagered =
-              votes
-              |> Map.values()
-              |> Enum.sum()
-
-            {votes, total_wagered}
-          end)
-
-        {losers_votes, losers_wagered} =
-          Map.get(prediction.outcomes, losing_outcome)
-          |> then(fn votes ->
-            total_wagered =
-              votes
-              |> Map.values()
-              |> Enum.sum()
-
-            {votes, total_wagered}
-          end)
+        {winners_votes, winners_wagered} = get_totals(prediction.outcomes, winning_outcome)
+        {losers_votes, losers_wagered} = get_totals(prediction.outcomes, losing_outcome)
 
         total_wagered = winners_wagered + losers_wagered
-        profit_ratio = total_wagered / winners_wagered
+        winners_profit_ratio = total_wagered / ((winners_wagered == 0 && 1) || winners_wagered)
+        losers_profit_ratio = total_wagered / ((losers_wagered == 0 && 1) || losers_wagered)
 
         multi_winners =
           winners_votes
@@ -111,14 +70,15 @@ defmodule Buttons do
                 multi
 
               %User{} = user ->
-                attrs = %{"coins" => user.coins - wager + floor(wager * profit_ratio)}
+                attrs = %{"coins" => user.coins - wager + floor(wager * winners_profit_ratio)}
                 cs = User.changeset(user, attrs)
                 Multi.insert_or_update(multi, "winner:#{user_id}", cs)
             end
           end)
 
+        # if there are no winners to give pobcoin to, don't withdraw from the losers
         multi =
-          losers_votes
+          ((map_size(winners_votes) > 0 && losers_votes) || %{})
           |> Enum.reduce(multi_winners, fn {user_id, wager}, multi ->
             case Repo.get(User, user_id) do
               nil ->
@@ -133,17 +93,19 @@ defmodule Buttons do
 
         case Repo.transaction(multi) do
           {:ok, _map} ->
-            response = [
-              content: """
-              **#{prediction.prompt}**
-              :tada: ~#{winning_outcome}~ :tada:
-              #{total_wagered} pobcoin goes to #{map_size(winners_votes)} predictors!
-              1:#{profit_ratio} |
-              check your current balance of pobcoin with /pobcoin
-              """
-            ]
+            stats = %{
+              total_wagered: total_wagered,
+              winners_profit_ratio: winners_profit_ratio,
+              winners_votes: winners_votes,
+              winners_wagered: winners_wagered,
+              winning_outcome: winning_outcome,
+              losers_profit_ratio: losers_profit_ratio,
+              losers_votes: losers_votes,
+              losers_wagered: losers_wagered,
+              losing_outcome: losing_outcome
+            }
 
-            InteractionHandler.respond(interaction, response)
+            update_prediction_embed(interaction, prediction, stats)
 
           {:error, failed_operation, failed_value, _changes_so_far} ->
             Logger.error("""
@@ -215,5 +177,61 @@ defmodule Buttons do
 
         InteractionHandler.respond(interaction, response, true)
     end
+  end
+
+  defp update_prediction_embed(interaction, prediction, stats) do
+    # update the embed, also create a new message with the embed
+    embed =
+      %Embed{}
+      |> Embed.put_title(prediction.prompt)
+      |> Embed.put_description(
+        "#{stats.total_wagered} pobcoin goes to #{map_size(stats.winners_votes)} predictors!"
+      )
+      |> Embed.put_color(Pobcoin.pob_purple())
+      |> Embed.put_thumbnail(Pobcoin.pob_dollar_image_url())
+      |> Embed.put_footer("Check your current balance of pobcoin with /pobcoin")
+      |> Embed.put_field(
+        ":tada: #{stats.winning_outcome} :tada:",
+        """
+        1:#{Float.round(stats.winners_profit_ratio, 2)}
+        #{map_size(stats.winners_votes)} predictors
+        #{stats.winners_wagered} pobcoin wagered
+        """,
+        true
+      )
+      |> Embed.put_field(
+        "#{stats.losing_outcome}",
+        """
+        1:#{Float.round(stats.losers_profit_ratio, 2)}
+        #{map_size(stats.losers_votes)} predictors
+        #{stats.losers_wagered} pobcoin wagered
+        """,
+        true
+      )
+
+    response = [
+      embeds: [embed]
+    ]
+
+    {channel_id, message_id} = prediction.token
+
+    Nostrum.Api.edit_message(channel_id, message_id, %{
+      embeds: [embed]
+    })
+
+    InteractionHandler.respond(interaction, response)
+  end
+
+  defp get_totals(outcomes, outcome_label) do
+    outcomes
+    |> Map.get(outcome_label)
+    |> then(fn votes ->
+      total_wagered =
+        votes
+        |> Map.values()
+        |> Enum.sum()
+
+      {votes, total_wagered}
+    end)
   end
 end

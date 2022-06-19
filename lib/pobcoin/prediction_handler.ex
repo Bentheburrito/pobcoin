@@ -7,8 +7,6 @@ defmodule Pobcoin.PredictionHandler do
   end
 
   def new(prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id) do
-    IO.inspect("ASBOUT TO DO NEW PREDICTION IN PREDICTION HANDLER")
-
     GenServer.call(
       __MODULE__,
       {:new, prediction_id, token, prompt, outcome_1, outcome_2, submission_period, owner_id}
@@ -67,6 +65,7 @@ defmodule Pobcoin.PredictionHandler do
 
   def handle_call({:predict, id, outcome, user_id, wager}, _from, predictions) do
     prediction = Map.get(predictions, id, %{outcomes: %{}})
+    Pobcoin.PredictionHandler.WagerSelections.delete_selection({id, user_id})
 
     cond do
       user_predicted_diff_outcome?(user_id, outcome, prediction) ->
@@ -81,14 +80,13 @@ defmodule Pobcoin.PredictionHandler do
 
         {:reply, {:ok, new_predictions[id]}, new_predictions}
     end
-    |> IO.inspect(label: "result of PredictionHandler.predict()")
   end
 
-  def handle_call({:close, id, user_id}, _from, predictions) do
-    {closed, new_predictions} = Map.pop(predictions, id, %{owner_id: nil})
+  def handle_call({:close, id, _user_id}, _from, predictions) do
+    {closed, new_predictions} = Map.pop(predictions, id, :not_found)
 
-    if user_id != closed.owner_id do
-      {:reply, :unauthorized, predictions}
+    if closed == :not_found do
+      {:reply, :not_found, predictions}
     else
       Pobcoin.PredictionHandler.WagerSelections.clear_for(id)
       Pobcoin.determine_one_percenters()
@@ -111,7 +109,7 @@ defmodule Pobcoin.PredictionHandler do
     {:reply, total_wagered, predictions}
   end
 
-  def handle_info({:close_submissions, id, token}, predictions) do
+  def handle_info({:close_submissions, id, _token}, predictions) do
     case Map.fetch(predictions, id) do
       {:ok, prediction} ->
         embed =
