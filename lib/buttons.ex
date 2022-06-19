@@ -4,6 +4,7 @@ defmodule Buttons do
   alias Pobcoin.InteractionHandler
   alias Pobcoin.PredictionHandler.WagerSelections
   alias Pobcoin.PredictionHandler
+  alias Pobcoin.{Repo, User}
 
   require Logger
 
@@ -30,7 +31,12 @@ defmodule Buttons do
   end
 
   def handle_interaction(
-        %Interaction{data: %{custom_id: "close:" <> prediction_id_str}} = interaction
+        %Interaction{
+          data: %{
+            custom_id:
+              "close:" <> <<outcome_label_hash::binary-size(32)>> <> ":" <> prediction_id_str
+          }
+        } = interaction
       ) do
     user_id = interaction.member.user.id
     prediction_id = String.to_integer(prediction_id_str)
@@ -60,61 +66,126 @@ defmodule Buttons do
             true
           )
 
-        Nostrum.Api.edit_interaction_response(Nostrum.Cache.Me.get().id, prediction.token, %{
+        {channel_id, message_id} = prediction.token
+
+        Nostrum.Api.edit_message(channel_id, message_id, %{
           embeds: [embed],
           components: components
         })
 
         # distribute pobcoin
-        # wage_reducer = fn {user_id, wager}, {cur_wagered, participants} = acc ->
-        #   if is_number(wager) do
-        #     {cur_wagered + wager, Map.update(participants, user_id, wager, &(&1 + 1))}
-        #   else
-        #     acc
-        #   end
-        # end
+        {:ok, {winning_outcome, losing_outcome}} =
+          Map.fetch(prediction.label_map, outcome_label_hash)
 
-        # [{_, winners}, {_, losers}] =
-        #   for outcome <- outcomes do
-        #     {_total_wagered, _participants} = Enum.reduce(outcome, {0, 0}, wage_reducer)
-        #   end
-        #   |> Enum.sort_by(&elem(&1, 0), :asc)
+        {winners_votes, winners_wagered} =
+          Map.get(prediction.outcomes, winning_outcome)
+          |> then(fn votes ->
+            total_wagered =
+              votes
+              |> Map.values()
+              |> Enum.sum()
 
-        #   sender_cs = User.changeset(sender, %{"coins" => sender.coins - amount})
-        #   receiver_cs = User.changeset(receiver, %{"coins" => receiver.coins + amount})
-        # multi =
-        #   winners
-        #   Enum.reduce(Multi.new(), fn {user_id, wager}, multi ->
+            {votes, total_wagered}
+          end)
 
-        #   end)
-        #   |> Multi.insert_or_update(:withdraw, sender_cs)
-        #   |> Multi.insert_or_update(:deposit, receiver_cs)
+        {losers_votes, losers_wagered} =
+          Map.get(prediction.outcomes, losing_outcome)
+          |> then(fn votes ->
+            total_wagered =
+              votes
+              |> Map.values()
+              |> Enum.sum()
 
-        # send success message
-        InteractionHandler.respond(
-          interaction,
-          [content: "Successfully closed prediction!"],
-          true
-        )
+            {votes, total_wagered}
+          end)
+
+        total_wagered = winners_wagered + losers_wagered
+        profit_ratio = total_wagered / winners_wagered
+
+        multi_winners =
+          winners_votes
+          |> Enum.reduce(Multi.new(), fn {user_id, wager}, multi ->
+            case Repo.get(User, user_id) do
+              nil ->
+                Logger.error("#{user_id} predicted in #{id} but they have no entry in DB.")
+                multi
+
+              %User{} = user ->
+                attrs = %{"coins" => user.coins - wager + floor(wager * profit_ratio)}
+                cs = User.changeset(user, attrs)
+                Multi.insert_or_update(multi, "winner:#{user_id}", cs)
+            end
+          end)
+
+        multi =
+          losers_votes
+          |> Enum.reduce(multi_winners, fn {user_id, wager}, multi ->
+            case Repo.get(User, user_id) do
+              nil ->
+                Logger.error("#{user_id} predicted in #{id} but they have no entry in DB.")
+                multi
+
+              %User{} = user ->
+                cs = User.changeset(user, %{"coins" => user.coins - wager})
+                Multi.insert_or_update(multi, "loser:#{user_id}", cs)
+            end
+          end)
+
+        case Repo.transaction(multi) do
+          {:ok, _map} ->
+            response = [
+              content: """
+              **#{prediction.prompt}**
+              :tada: ~#{winning_outcome}~ :tada:
+              #{total_wagered} pobcoin goes to #{map_size(winners_votes)} predictors!
+              1:#{profit_ratio} |
+              check your current balance of pobcoin with /pobcoin
+              """
+            ]
+
+            InteractionHandler.respond(interaction, response)
+
+          {:error, failed_operation, failed_value, _changes_so_far} ->
+            Logger.error("""
+            FAILED TO DISTRIBUTE POBCOIN AFTER PREDICTION CLOSE
+            failed operation: #{inspect(failed_operation)}
+            failed value: #{inspect(failed_value)}
+            prediction (#{id}): #{inspect(prediction)}
+            """)
+
+            response = [
+              content:
+                "uhh I wasn't able to distribute the pobcoin for a prediction, sorry!..Blame @Snowful#1234"
+            ]
+
+            InteractionHandler.respond(interaction, response)
+        end
     end
   end
 
   def handle_interaction(%Interaction{data: %{custom_id: custom_id}} = interaction) do
-    [outcome_label, prediction_id_str] = String.split(custom_id, ":")
+    [outcome_label_hash, prediction_id_str] = String.split(custom_id, ":")
     user_id = interaction.member.user.id
     prediction_id = String.to_integer(prediction_id_str)
 
     with {:ok, wager} <- WagerSelections.get_selection({prediction_id, user_id}),
          {:ok, prediction} <-
-           PredictionHandler.predict(prediction_id, outcome_label, user_id, wager) do
+           PredictionHandler.predict(
+             prediction_id,
+             {:hashed_label, outcome_label_hash},
+             user_id,
+             wager
+           ) do
       Logger.debug(
-        "#{interaction.member.user.username} predicted \"#{outcome_label}\" with #{wager} Pobcoin"
+        "#{interaction.member.user.username} predicted \"#{outcome_label_hash}\" with #{wager} Pobcoin"
       )
 
       embed =
         SlashCommand.Prediction.create_prediction_embed(prediction.prompt, prediction.outcomes)
 
-      Nostrum.Api.edit_interaction_response(Nostrum.Cache.Me.get().id, prediction.token, %{
+      {channel_id, message_id} = prediction.token
+
+      Nostrum.Api.edit_message(channel_id, message_id, %{
         embeds: [embed]
       })
 

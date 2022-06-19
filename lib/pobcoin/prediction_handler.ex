@@ -44,12 +44,21 @@ defmodule Pobcoin.PredictionHandler do
       token: token,
       can_predict: true,
       submissions_close: DateTime.add(DateTime.now!("Etc/UTC"), submission_period * 60, :second),
-      owner_id: owner_id
+      owner_id: owner_id,
+      label_map: %{
+        Utils.hash_outcome_label(outcome_1) => {outcome_1, outcome_2},
+        Utils.hash_outcome_label(outcome_2) => {outcome_2, outcome_1}
+      }
     }
 
     Process.send_after(self(), {:close_submissions, id, token}, submission_period * 60 * 1000)
 
     {:reply, :ok, Map.put(predictions, id, init_prediction)}
+  end
+
+  def handle_call({:predict, id, {:hashed_label, hash}, user_id, wager}, from, predictions) do
+    {outcome_label, _} = Map.get(predictions[id].label_map, hash)
+    handle_call({:predict, id, outcome_label, user_id, wager}, from, predictions)
   end
 
   def handle_call({:predict, id, outcome, user_id, wager}, _from, predictions) do
@@ -65,7 +74,6 @@ defmodule Pobcoin.PredictionHandler do
       true ->
         new_predictions =
           Utils.update_in(predictions, [id, :outcomes, outcome, user_id], wager, &(&1 + wager))
-          |> IO.inspect(label: "NEW_PREDICTIONS")
 
         {:reply, {:ok, new_predictions[id]}, new_predictions}
     end
@@ -78,6 +86,7 @@ defmodule Pobcoin.PredictionHandler do
     if user_id != closed.owner_id do
       {:reply, :unauthorized, predictions}
     else
+      Pobcoin.PredictionHandler.WagerSelections.clear_for(id)
       {:reply, {id, closed}, new_predictions}
     end
   end
@@ -95,7 +104,12 @@ defmodule Pobcoin.PredictionHandler do
         components =
           SlashCommand.Prediction.create_prediction_components(id, prediction.outcomes, true)
 
-        Nostrum.Api.edit_interaction_response(token, %{embeds: [embed], components: components})
+        {channel_id, message_id} = prediction.token
+
+        Nostrum.Api.edit_message(channel_id, message_id, %{
+          embeds: [embed],
+          components: components
+        })
 
         new_predictions =
           Map.update!(predictions, id, fn prediction ->

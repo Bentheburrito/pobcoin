@@ -49,7 +49,7 @@ defmodule SlashCommand.Prediction do
   end
 
   @impl SlashCommand
-  def ephemeral?, do: false
+  def ephemeral?, do: true
 
   @impl SlashCommand
   def run(%Interaction{id: id, token: token} = interaction) do
@@ -67,10 +67,17 @@ defmodule SlashCommand.Prediction do
     outcomes = %{outcome_1 => %{}, outcome_2 => %{}}
     embed = create_prediction_embed(prompt, outcomes)
     components = create_prediction_components(id, outcomes)
-    # create_prediction_message(id, prompt, outcomes, interaction.member.user)
+
+    message =
+      Nostrum.Api.create_message!(interaction.channel_id,
+        components: components,
+        embeds: [embed],
+        content: "#{interaction.user.username} has started a prediction!"
+      )
+
     Pobcoin.PredictionHandler.new(
       id,
-      token,
+      {interaction.channel_id, message.id},
       prompt,
       outcome_1,
       outcome_2,
@@ -78,7 +85,46 @@ defmodule SlashCommand.Prediction do
       interaction.user.id
     )
 
-    {:response, [components: components, embeds: [embed]]}
+    prediction_management_components = [
+      %{
+        "type" => 1,
+        "components" => [
+          %{
+            "type" => 2,
+            "label" => outcome_1,
+            # (disable_close_button &&
+            #   "Prediction Closed") ||
+            #  "Close Prediction (prediction creator only)",
+            "style" => 3,
+            "custom_id" => "close:#{Utils.hash_outcome_label(outcome_1)}:#{id}",
+            # disable_close_button
+            "disabled" => false
+          },
+          %{
+            "type" => 2,
+            "label" => outcome_2,
+            # (disable_close_button &&
+            #   "Prediction Closed") ||
+            #  "Close Prediction (prediction creator only)",
+            "style" => 3,
+            "custom_id" => "close:#{Utils.hash_outcome_label(outcome_2)}:#{id}",
+            # disable_close_button
+            "disabled" => false
+          }
+        ]
+      }
+    ]
+
+    {:response,
+     [
+       components: prediction_management_components,
+       content: """
+       You started a prediction!
+       When it's time to decide a winning outcome, click one of the buttons below to close the prediction!
+       """
+     ]}
+
+    # {:response, [components: components, embeds: [embed]]}
   end
 
   def create_prediction_components(
@@ -119,22 +165,10 @@ defmodule SlashCommand.Prediction do
               "type" => 2,
               "label" => label,
               "style" => 1,
-              "custom_id" => "#{label}:#{id}",
+              "custom_id" => "#{Utils.hash_outcome_label(label)}:#{id}",
               "disabled" => disable_wager_buttons
             }
-          end) ++
-            [
-              %{
-                "type" => 2,
-                "label" =>
-                  (disable_close_button &&
-                     "Prediction Closed") ||
-                    "Close Prediction (prediction creator only)",
-                "style" => 3,
-                "custom_id" => "close:#{id}",
-                "disabled" => disable_close_button
-              }
-            ]
+          end)
       }
     ]
   end
@@ -152,50 +186,14 @@ defmodule SlashCommand.Prediction do
     end)
   end
 
-  @doc """
-  tallies total votes, grouped by outcome. You can also tally the participants based on `participant_tally_type`
-
-  - `:count`: Count each vote (not guaranteed to uniquely identify each participant).
-  - `:ids`: Adds each voter's ID to a list (like with `:count`, the list could contain duplicate IDs).
-  - `:none`: No tallying of participants, just the wager
-  """
-  @spec tally_outcome_votes(
-          votes :: %{Nostrum.Snowflake.t() => integer()},
-          participant_tally_type :: :ids | :count | :none
-        ) :: {integer(), integer() | list()} | integer()
-  def tally_outcome_votes(votes, participant_tally_type \\ :count)
-      when participant_tally_type in [:ids, :count, :none] do
-    init_acc =
-      case participant_tally_type do
-        :count -> {0, 0}
-        :ids -> {0, []}
-        :none -> 0
-      end
-
-    Enum.reduce(votes, init_acc, &tally_reducer/2)
-  end
-
-  defp tally_reducer({_user_id, wager}, acc) when not is_number(wager), do: acc
-
-  defp tally_reducer({_user_id, wager}, {cur_wagered, participant_count})
-       when is_integer(participant_count) do
-    {cur_wagered + wager, participant_count + 1}
-  end
-
-  defp tally_reducer({user_id, wager}, {cur_wagered, participant_ids})
-       when is_list(participant_ids) do
-    {cur_wagered + wager, [user_id | participant_ids]}
-  end
-
-  defp tally_reducer({_user_id, wager}, cur_wagered) do
-    cur_wagered + wager
-  end
-
   defp create_outcome_info(outcome_votes) do
-    {total_wagered, total_participants} = tally_outcome_votes(outcome_votes)
+    total_wagered =
+      outcome_votes
+      |> Map.values()
+      |> Enum.sum()
 
     """
-    Users predicting: #{total_participants}
+    Users predicting: #{map_size(outcome_votes)}
     Pobcoin wagered: #{total_wagered}
     """
   end

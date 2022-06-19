@@ -21,4 +21,9 @@ defmodule Utils do
       value -> put_in(data, keys, fun.(value))
     end
   end
+
+  def hash_outcome_label(label) do
+    :crypto.hash(:md5, label)
+    |> Base.encode16()
+  end
 end
