@@ -21,6 +21,9 @@ defmodule Pobcoin.Consumer do
   def handle_event({:MESSAGE_CREATE, message, _ws_state}) do
     if message.content == "!pob", do: Api.create_message(message.channel_id, "pob")
 
+    if message.content == "!pobisdead",
+      do: Api.create_message(message.channel_id, "Long Live Pob")
+
     if String.starts_with?(message.content, "!say ") and
          message.author.id in Application.get_env(:pobcoin, :oligarchs, []) do
       [_say, channel_id | message_list] = String.split(message.content)

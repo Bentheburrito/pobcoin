@@ -163,7 +163,7 @@ defmodule SlashCommand do
         Api.create_global_application_command(definition)
 
       {:guild, guild_ids} when is_list(guild_ids) ->
-        Enum.each(guild_ids, &Api.create_guild_application_command(&1, definition))
+        Enum.map(guild_ids, &Api.create_guild_application_command(&1, definition))
 
       {:guild, guild_id} ->
         Api.create_guild_application_command(guild_id, definition)

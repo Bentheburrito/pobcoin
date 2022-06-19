@@ -23,7 +23,7 @@ defmodule Pobcoin.InteractionHandler do
   def respond(%Interaction{} = interaction, data, ephemeral \\ false) do
     data =
       data
-      |> Keyword.take([:content, :embeds, :components])
+      |> Keyword.take([:content, :embeds, :components, :allowed_mentions])
       |> Map.new()
       |> then(&if ephemeral, do: Map.put(&1, :flags, 64), else: &1)
 
