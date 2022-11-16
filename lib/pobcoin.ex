@@ -13,7 +13,12 @@ defmodule Pobcoin do
 
   def error_red, do: 0xD4223A
 
-  def determine_one_percenters do
+  def last_take_period_ms, do: 1000 * 60 * 20
+
+  def last_sucked_period_ms,
+    do:
+      1000 *
+        def(determine_one_percenters) do
     users =
       Repo.all(User)
       |> Enum.sort_by(fn %User{coins: coins} -> coins end, :desc)
