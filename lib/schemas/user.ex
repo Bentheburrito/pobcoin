@@ -6,6 +6,10 @@ defmodule Pobcoin.User do
   schema "users" do
     field(:coins, :integer, default: 100)
     field(:one_percenter, :boolean, default: false)
+    field(:blood, :integer, default: 20)
+    field(:last_donation, :utc_datetime, default: nil)
+    field(:last_sucked, :utc_datetime, default: nil)
+    field(:last_take, :utc_datetime, default: nil)
   end
 
   def changeset(user, params \\ %{}) do
@@ -13,6 +17,7 @@ defmodule Pobcoin.User do
     |> cast(params, [:user_id, :coins, :one_percenter])
     |> validate_required([:user_id, :coins])
     |> validate_number(:coins, greater_than_or_equal_to: 0)
+    |> validate_number(:blood, greater_than_or_equal_to: 0)
     |> unique_constraint(:user_id)
   end
 end

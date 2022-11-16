@@ -2,6 +2,10 @@ defmodule Pobcoin.Consumer do
   use Nostrum.Consumer
 
   alias Nostrum.Api
+  alias Pobcoin.{User, Repo}
+  alias Ecto.Multi
+
+  require Logger
 
   @react_emojis [
     "pobcoin:850900816826073099",
@@ -56,6 +60,8 @@ defmodule Pobcoin.Consumer do
       Pobcoin.Twitch.init_eventsub_subscriptions()
     end
 
+    Task.start(&decrement_blood/0)
+
     SlashCommand.init_commands()
   end
 
@@ -66,5 +72,44 @@ defmodule Pobcoin.Consumer do
 
   def handle_event(_event) do
     :noop
+  end
+
+  defp decrement_blood() do
+    Process.sleep(1000 * 60 * 60)
+
+    %User{} = users = Repo.all(User)
+
+    {multi, died} =
+      for user <- users, user.blood != 0, reduce: {Multi.new(), []} do
+        {multi, died} ->
+          cs = User.changeset(user, %{"blood" => user.blood - 1})
+          died = if user.blood - 1 == 0, do: [user.user_id | died], else: died
+          {Multi.update(multi, "user_#{user.user_id}", cs), died}
+      end
+
+    case Repo.transaction(multi) do
+      {:ok, _map} ->
+        Api.create_message(381_258_231_613_227_020, "Everyone's health has decreased by 1!")
+
+        dead_usernames =
+          Enum.map_join(died, "\n- ", fn user_id ->
+            case Nostrum.Cache.UserCache.get(user_id) do
+              {:ok, user} -> user.username
+              {:error, _} -> "unknown username (ID #{user_id}"
+            end
+          end)
+
+        Api.create_message(381_258_231_613_227_020, """
+        Unfortunately, some vampires have passed away...
+        - #{dead_usernames}
+        """)
+
+      {:error, fail_op, fail_val, _} ->
+        Logger.error(
+          "ERROR SUBTRACTING BLOOD #{inspect(fail_op, label: "fail op")} #{inspect(fail_val, label: "fail val")}"
+        )
+    end
+
+    decrement_blood()
   end
 end

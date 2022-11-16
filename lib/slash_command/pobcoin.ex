@@ -48,6 +48,7 @@ defmodule SlashCommand.Pobcoin do
           Nostrum.Struct.User.avatar_url(discord_user)
         )
         |> Embed.put_field("Pobcoin Balance", user.coins, true)
+        |> Embed.put_field("Health", user.blood, true)
         |> Embed.put_field("Status", (user.one_percenter && "1%-er") || "Pobcoin User", true)
         |> Embed.put_color(Pobcoin.pob_purple())
         |> Embed.put_image(Pobcoin.pob_dollar_image_url())
