@@ -4,9 +4,50 @@ defmodule Buttons do
   alias Pobcoin.InteractionHandler
   alias Pobcoin.PredictionHandler.WagerSelections
   alias Pobcoin.PredictionHandler
+  alias Pobcoin.GuessWhoHandler
   alias Pobcoin.{Repo, User}
 
   require Logger
+
+  @cant_guess_message "I wasn't able to add your guess - please try again and ping @Snowful#1234 if this happens again"
+
+  def handle_interaction(
+        %Interaction{
+          data: %{
+            custom_id: "guess:" <> interaction_id_colon_submitter_id,
+            resolved: resolved
+          }
+        } = interaction
+      ) do
+    with users when map_size(users) == 1 <- Map.get(resolved, :users),
+         [{user_id, user}] <- Enum.take(users, 1) do
+      [interaction_id, submitter_id] =
+        interaction_id_colon_submitter_id
+        |> String.split(":")
+        |> Enum.map(&String.to_integer/1)
+
+      guesser_id = interaction.member.user.id
+      guessee_id = user_id
+
+      if submitter_id != interaction.member.user.id do
+        GuessWhoHandler.put_guess(interaction_id, guesser_id, guessee_id)
+
+        InteractionHandler.respond(interaction,
+          content: "#{interaction.member} guessed #{user.username} wrote the message"
+        )
+      else
+        InteractionHandler.respond(
+          interaction,
+          [content: "You submitted this one, no guessing 💩 😕"],
+          true
+        )
+      end
+    else
+      users when map_size(users) != 1 ->
+        Logger.warning("Got more than 1 user for guess selection: #{inspect(users)}")
+        InteractionHandler.respond(interaction, [content: @cant_guess_message], true)
+    end
+  end
 
   def handle_interaction(
         %Interaction{
