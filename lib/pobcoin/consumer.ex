@@ -24,6 +24,13 @@ defmodule Pobcoin.Consumer do
     if message.content == "!pobisdead",
       do: Api.create_message(message.channel_id, "Long Live Pob")
 
+    if message.content == "!info",
+      do:
+        Api.create_message(message.channel_id, """
+        I am a bot made by @Snowful#1234 for da best cousins in the world.
+        My GitHub repository: https://github.com/Bentheburrito/pobcoin/
+        """)
+
     if String.starts_with?(message.content, "!say ") and
          message.author.id in Application.get_env(:pobcoin, :oligarchs, []) do
       [_say, channel_id | message_list] = String.split(message.content)
