@@ -57,6 +57,7 @@ defmodule SlashCommand.AddGuessWhoEntry do
 
     case Repo.insert(changeset) do
       {:ok, _entry} ->
+        Nostrum.Api.create_reaction(message.channel_id, message.id, "✅")
         {:response, content: "Successfully added your entry! ✅"}
 
       {:error, changeset} ->

@@ -21,7 +21,7 @@ defmodule Buttons do
       ) do
     with users when map_size(users) == 1 <- Map.get(resolved, :users),
          [{user_id, user}] <- Enum.take(users, 1) do
-      [interaction_id, submitter_id] =
+      [_interaction_id, submitter_id] =
         interaction_id_colon_submitter_id
         |> String.split(":")
         |> Enum.map(&String.to_integer/1)
@@ -30,7 +30,7 @@ defmodule Buttons do
       guessee_id = user_id
 
       if submitter_id != interaction.member.user.id do
-        GuessWhoHandler.put_guess(interaction_id, guesser_id, guessee_id)
+        GuessWhoHandler.put_guess(interaction.channel_id, guesser_id, guessee_id)
 
         InteractionHandler.respond(interaction,
           content: "#{interaction.member} guessed #{user.username} wrote the message"
