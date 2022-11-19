@@ -54,10 +54,16 @@ defmodule SlashCommand.GuessWho do
 
     embed =
       %Embed{}
-      |> Embed.put_description(
-        "Guess who sent the message below to win 10 <:pobcoin:850900816826073099>\nGuessing will end in __90 seconds!__"
+      |> Embed.put_author(
+        "Who am I?",
+        nil,
+        "https://cdn.discordapp.com/attachments/381258231613227020/1043282961929347163/image.png"
       )
-      |> Embed.put_field("Message", entry.message_text)
+      |> Embed.put_description(entry.message_text)
+      |> Embed.put_field(
+        "Guess who sent the above message to win 10 <:pobcoin:850900816826073099>",
+        "Guessing will end in __90 seconds!__"
+      )
       |> Embed.put_color(Pobcoin.pob_purple())
       |> Embed.put_footer(
         "Submitted by #{submitter.username}",
@@ -114,14 +120,24 @@ defmodule SlashCommand.GuessWho do
         # NOTE: this message link will break if Pobcoin is ever added to other guilds. If messages are added from one
         # guilds and the game uses them in a game in another guild, the link MIGHT still work if the user that clicks
         # it is in both guilds. To fix this you could add a `guild_id` field to the %GuessWhoEntry{} schema
-        Nostrum.Api.create_message(interaction.channel_id, """
-        **Guessing is over**
-        The answer is: #{user}!
-        https://discord.com/channels/#{interaction.guild_id}/#{entry.channel_id}/#{entry.message_id}
+        embed =
+          %Embed{}
+          |> Embed.put_author(
+            user.username,
+            "https://discord.com/channels/#{interaction.guild_id}/#{entry.channel_id}/#{entry.message_id}",
+            Nostrum.Struct.User.avatar_url(user)
+          )
+          |> Embed.put_description(entry.message_text)
+          |> Embed.put_field(
+            "Winners (+10 <:pobcoin:850900816826073099> each)",
+            (winners == "" && "Nobody :(") || winners
+          )
+          |> Embed.put_color((winners == "" && Pobcoin.error_red()) || Pobcoin.good_green())
 
-        **Winners (+10 <:pobcoin:850900816826073099> each)**
-        #{(winners == "" && "Nobody :(") || winners}
-        """)
+        Nostrum.Api.create_message(interaction.channel_id,
+          content: "**Guessing is over**",
+          embeds: [embed]
+        )
 
         # Not going to use a Multi here, since still we want others to receive their reward if some fail.
         Enum.each(correct_guessers, fn guesser_id ->
