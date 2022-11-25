@@ -13,6 +13,16 @@ defmodule Pobcoin.Application do
       Pobcoin.GuessWhoHandler,
       Pobcoin.PredictionHandler.WagerSelections,
       Pobcoin.PredictionHandler,
+      {Plug.Cowboy,
+       scheme: :http,
+       plug:
+         {TwitchEx.EventSub.Transports.WebHook,
+          %{
+            callback_url: System.get_env("TWITCH_CALLBACK_URL"),
+            secret: System.get_env("EVENTSUB_SECRET"),
+            notification_processor: &Pobcoin.Twitch.handle_eventsub_notif/2
+          }},
+       options: [port: 8080]},
       {Pobcoin.Consumer, name: Pobcoin.Consumer}
     ]
 
