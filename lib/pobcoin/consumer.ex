@@ -51,7 +51,10 @@ defmodule Pobcoin.Consumer do
     IO.puts("Logged in under user #{data.user.username}##{data.user.discriminator}")
     Api.update_status(:dnd, "twitch.tv/pobsterlot", 3)
 
-    Pobcoin.Twitch.init_eventsub_subscriptions()
+    # only automatically subscribe if we are in prod
+    if System.get_env("MIX_ENV", "dev") == "prod" do
+      Pobcoin.Twitch.init_eventsub_subscriptions()
+    end
 
     SlashCommand.init_commands()
   end

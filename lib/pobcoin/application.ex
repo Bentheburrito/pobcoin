@@ -22,7 +22,7 @@ defmodule Pobcoin.Application do
             secret: System.get_env("EVENTSUB_SECRET"),
             notification_processor: &Pobcoin.Twitch.handle_eventsub_notif/2
           }},
-       options: [port: 8080]},
+       options: [port: System.get_env("TWITCH_CALLBACK_PORT", "8080") |> String.to_integer()]},
       {Pobcoin.Consumer, name: Pobcoin.Consumer}
     ]
 
