@@ -25,7 +25,10 @@ defmodule Pobcoin.MixProject do
       {:nostrum, github: "Kraigie/nostrum"},
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
-      {:dotenv_parser, "~> 1.2"}
+      {:dotenv_parser, "~> 1.2"},
+      {:cowlib, "~> 2.11.1",
+       [env: :prod, hex: "remedy_cowlib", repo: "hexpm", optional: false, override: true]},
+      {:twitch_ex, "~> 0.1.0"}
     ]
   end
 end
