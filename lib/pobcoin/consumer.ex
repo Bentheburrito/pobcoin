@@ -3,6 +3,8 @@ defmodule Pobcoin.Consumer do
 
   alias Nostrum.Api
 
+  require Logger
+
   @react_emojis [
     "pobcoin:850900816826073099",
     "thonk:381325006761754625",
@@ -11,7 +13,8 @@ defmodule Pobcoin.Consumer do
     "😭",
     "🇼",
     "🇱",
-    "deezfingersupyournostrils:935231262313054258"
+    "deezfingersupyournostrils:935231262313054258",
+    "FallGuy2:870273932232650772"
   ]
 
   def start_link do
@@ -48,7 +51,7 @@ defmodule Pobcoin.Consumer do
   end
 
   def handle_event({:READY, data, _ws_state}) do
-    IO.puts("Logged in under user #{data.user.username}##{data.user.discriminator}")
+    Logger.info("Logged in under user #{data.user.username}##{data.user.discriminator}")
     Api.update_status(:dnd, "twitch.tv/pobsterlot", 3)
 
     # only automatically subscribe if we are in prod

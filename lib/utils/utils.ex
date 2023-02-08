@@ -10,8 +10,8 @@ defmodule Utils do
   def get_or_new(user_id) do
     case Repo.one(from(p in User, where: p.user_id == ^user_id)) do
       nil ->
-        %User{user_id: user_id, coins: 100}
-        |> Repo.insert()
+        User.changeset(%User{})
+        |> Repo.insert!()
 
       %User{} = user ->
         user
@@ -29,5 +29,9 @@ defmodule Utils do
   def hash_outcome_label(label) do
     :crypto.hash(:md5, label)
     |> Base.encode16()
+  end
+
+  def discord_date_format(datetime) do
+    "<t:#{DateTime.to_unix(datetime)}>"
   end
 end
