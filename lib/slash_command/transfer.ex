@@ -54,7 +54,7 @@ defmodule SlashCommand.Transfer do
 
     # Additional parameter checks
     cond do
-      target_id == interaction.member.user.id ->
+      target_id == interaction.user.id ->
         {:response,
          [
            content:
@@ -81,7 +81,7 @@ defmodule SlashCommand.Transfer do
 
   defp transfer(%Interaction{} = interaction, %DiscordUser{} = target_user, amount, memo) do
     # Get both users' data from DB. If they haven't registered yet, make a new struct for them.
-    sender = Utils.get_or_new(interaction.member.user.id)
+    sender = Utils.get_or_new(interaction.user.id)
     receiver = Utils.get_or_new(target_user.id)
 
     # Create changesets with proposed balance changes.
@@ -106,14 +106,14 @@ defmodule SlashCommand.Transfer do
         embed =
           %Embed{}
           |> Embed.put_author(
-            interaction.member.user.username,
+            interaction.user.username,
             nil,
-            Nostrum.Struct.User.avatar_url(interaction.member.user)
+            Nostrum.Struct.User.avatar_url(interaction.user)
           )
           |> Embed.put_footer(target_user.username, Nostrum.Struct.User.avatar_url(target_user))
           |> Embed.put_description(description)
           |> Embed.put_field(
-            interaction.member.user.username,
+            interaction.user.username,
             "#{sender.coins} - #{amount} = **#{sender.coins - amount}**",
             true
           )

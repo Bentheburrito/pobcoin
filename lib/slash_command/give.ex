@@ -57,7 +57,7 @@ defmodule SlashCommand.Give do
     %{"user" => target_id, "amount" => amount} = SlashCommand.get_options(interaction)
 
     cond do
-      interaction.member.user.id not in Application.get_env(:pobcoin, :oligarchs, []) ->
+      interaction.user.id not in Application.get_env(:pobcoin, :oligarchs, []) ->
         {:response,
          [
            content:

@@ -34,7 +34,7 @@ defmodule SlashCommand.Pobcoin do
     user_id =
       interaction
       |> SlashCommand.get_options()
-      |> Map.get("user", interaction.member.user.id)
+      |> Map.get("user", interaction.user.id)
 
     user = Utils.get_or_new(user_id)
 

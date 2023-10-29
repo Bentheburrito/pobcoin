@@ -11,7 +11,7 @@ defmodule Utils do
     case Repo.one(from(p in User, where: p.user_id == ^user_id)) do
       nil ->
         %User{user_id: user_id, coins: 100}
-        |> Repo.insert()
+        |> Repo.insert!()
 
       %User{} = user ->
         user

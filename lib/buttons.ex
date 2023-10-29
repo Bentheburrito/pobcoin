@@ -26,14 +26,14 @@ defmodule Buttons do
         |> String.split(":")
         |> Enum.map(&String.to_integer/1)
 
-      guesser_id = interaction.member.user.id
+      guesser_id = interaction.user.id
       guessee_id = user_id
 
-      if submitter_id != interaction.member.user.id do
+      if submitter_id != interaction.user.id do
         GuessWhoHandler.put_guess(interaction.channel_id, guesser_id, guessee_id)
 
         InteractionHandler.respond(interaction,
-          content: "#{interaction.member} guessed #{user.username} wrote the message"
+          content: "#{interaction.user} guessed #{user.username} wrote the message"
         )
       else
         InteractionHandler.respond(
@@ -57,7 +57,7 @@ defmodule Buttons do
           }
         } = interaction
       ) do
-    user_id = interaction.member.user.id
+    user_id = interaction.user.id
     prediction_id = String.to_integer(prediction_id_str)
     wager_id = {prediction_id, user_id}
 
@@ -79,7 +79,7 @@ defmodule Buttons do
           }
         } = interaction
       ) do
-    user_id = interaction.member.user.id
+    user_id = interaction.user.id
     prediction_id = String.to_integer(prediction_id_str)
 
     case PredictionHandler.close(prediction_id, user_id) do
@@ -168,7 +168,7 @@ defmodule Buttons do
 
   def handle_interaction(%Interaction{data: %{custom_id: custom_id}} = interaction) do
     [outcome_label_hash, prediction_id_str] = String.split(custom_id, ":")
-    user_id = interaction.member.user.id
+    user_id = interaction.user.id
     prediction_id = String.to_integer(prediction_id_str)
 
     with {:ok, wager} <- WagerSelections.get_selection({prediction_id, user_id}),
@@ -180,7 +180,7 @@ defmodule Buttons do
              wager
            ) do
       Logger.debug(
-        "#{interaction.member.user.username} predicted \"#{outcome_label_hash}\" with #{wager} Pobcoin"
+        "#{interaction.user.username} predicted \"#{outcome_label_hash}\" with #{wager} Pobcoin"
       )
 
       embed =

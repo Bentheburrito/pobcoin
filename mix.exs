@@ -23,6 +23,8 @@ defmodule Pobcoin.MixProject do
   defp deps do
     [
       {:nostrum, github: "Kraigie/nostrum"},
+      # have to override this otherwise :tesla's gun dep version conflicts w/ nostrum
+      {:gun, "== 2.0.1", [env: :prod, hex: "remedy_gun", repo: "hexpm", override: true]},
       {:ecto_sql, "~> 3.0"},
       {:postgrex, ">= 0.0.0"},
       {:dotenv_parser, "~> 1.2"},

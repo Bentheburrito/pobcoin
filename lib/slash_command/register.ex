@@ -27,7 +27,7 @@ defmodule SlashCommand.Register do
 
   @impl SlashCommand
   def run(%Interaction{} = interaction) do
-    attrs = %{"user_id" => interaction.member.user.id, "coins" => 100}
+    attrs = %{"user_id" => interaction.user.id, "coins" => 100}
     changeset = User.changeset(%User{}, attrs)
 
     case Pobcoin.Repo.insert(changeset) do
