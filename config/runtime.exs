@@ -7,8 +7,17 @@ end
 config :nostrum,
   token: System.get_env("BOT_TOKEN")
 
-config :pobcoin, Pobcoin.Repo,
-  database: "pobcoin",
-  username: System.get_env("DB_USER"),
-  password: System.get_env("DB_PASS"),
-  hostname: System.get_env("DB_HOST")
+case System.get_env("DB_SOCKET") do
+  nil ->
+    config :pobcoin, Pobcoin.Repo,
+      database: "pobcoin",
+      username: System.get_env("DB_USER"),
+      password: System.get_env("DB_PASS"),
+      hostname: System.get_env("DB_HOST")
+
+  socket ->
+    config :pobcoin, Pobcoin.Repo,
+      database: "pobcoin",
+      username: System.get_env("DB_USER"),
+      socket_dir: socket
+end
